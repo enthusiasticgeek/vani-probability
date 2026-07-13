@@ -1,0 +1,227 @@
+// vani-probability  v0.1.0 — probability and statistics library
+//
+// IMPORTANT — do NOT reimplement vāṇī compiler builtins.
+// The following are already available and must be called directly:
+//   f64_normal_pdf(x, mean, sd)  — Gaussian PDF
+//   f64_normal_cdf(x, mean, sd)  — Gaussian CDF
+//   rand_normal(mean, sd)        — sample from N(mean, sd²)
+//   rand_uniform(lo, hi)         — uniform sample on [lo, hi]
+//   rand_i64(lo, hi)             — uniform integer sample
+//   rand_f64()                   — uniform sample on [0, 1)
+//   rand_bool(p)                 — Bernoulli sample
+//   f64_erf / f64_erfc           — error function
+//   f64_tgamma / f64_lgamma      — gamma/log-gamma functions
+//   i64_factorial / i64_binomial / i64_perm
+//   f64_geometric_mean / f64_harmonic_mean / f64_quadratic_mean
+
+// ── Descriptive statistics ────────────────────────────────────────────────────
+
+// Arithmetic mean of a sample Vec<f64>.
+// Note: f64_geometric_mean / f64_harmonic_mean / f64_quadratic_mean
+//       are builtins; this provides the standard arithmetic mean.
+fn mean(xs: Vec<f64>) -> f64 {
+    // TODO: sum xs / length(xs)
+    return 0.0;
+}
+
+// Sample variance (Bessel-corrected, denominator n-1).
+fn variance(xs: Vec<f64>) -> f64 {
+    // TODO: compute mean, then sum (xi - mean)² / (n-1)
+    return 0.0;
+}
+
+// Sample standard deviation: sqrt(variance(xs)).
+// Uses builtin sqrt — not reimplemented.
+fn std_dev(xs: Vec<f64>) -> f64 {
+    return sqrt(variance(xs));
+}
+
+// Median: middle value (or average of two middle values) of a sorted copy.
+// TODO: sort xs copy, return middle.
+fn median(xs: Vec<f64>) -> f64 {
+    // TODO: sort then index
+    return 0.0;
+}
+
+// Sample skewness: third standardised moment E[(X-μ)³] / σ³.
+fn skewness(xs: Vec<f64>) -> f64 {
+    // TODO: implement using mean and std_dev above
+    return 0.0;
+}
+
+// Excess kurtosis: fourth standardised moment - 3.
+fn kurtosis(xs: Vec<f64>) -> f64 {
+    // TODO: E[(X-μ)⁴]/σ⁴ - 3
+    return 0.0;
+}
+
+// Minimum and maximum of a sample.
+fn sample_min(xs: Vec<f64>) -> f64 {
+    // TODO: scan loop
+    return 0.0;
+}
+
+fn sample_max(xs: Vec<f64>) -> f64 {
+    // TODO: scan loop
+    return 0.0;
+}
+
+// ── Discrete distributions ────────────────────────────────────────────────────
+// Note: i64_binomial(n, k) is a builtin for the binomial coefficient.
+//       These functions compute PMFs/CDFs, which are NOT in the builtins.
+
+// Binomial PMF: P(X = k) = C(n,k) * p^k * (1-p)^(n-k).
+// Uses builtin i64_binomial for the coefficient.
+fn binomial_pmf(n: i64, k: i64, p: f64) -> f64 {
+    // TODO: cast i64_binomial(n,k) to f64, multiply by pow(p,k)*pow(1-p,n-k)
+    return 0.0;
+}
+
+// Binomial CDF: P(X <= k).
+fn binomial_cdf(n: i64, k: i64, p: f64) -> f64 {
+    // TODO: sum binomial_pmf(n, i, p) for i in 0..=k
+    return 0.0;
+}
+
+// Poisson PMF: P(X = k) = λ^k * e^{-λ} / k!.
+// Uses builtins pow, exp, i64_factorial.
+fn poisson_pmf(lambda: f64, k: i64) -> f64 {
+    // TODO: pow(lambda, k) * exp(-lambda) / i64_factorial(k)
+    return 0.0;
+}
+
+// Poisson CDF: P(X <= k) = sum_{i=0}^{k} poisson_pmf(lambda, i).
+fn poisson_cdf(lambda: f64, k: i64) -> f64 {
+    // TODO: cumulative sum
+    return 0.0;
+}
+
+// Geometric PMF: P(X = k) = (1-p)^{k-1} * p  (number of trials until first success).
+fn geometric_pmf(p: f64, k: i64) -> f64 {
+    // TODO: pow(1.0 - p, k - 1) * p
+    return 0.0;
+}
+
+// ── Continuous distributions ──────────────────────────────────────────────────
+// Normal distribution: already builtin (f64_normal_pdf / f64_normal_cdf).
+// These add distributions NOT yet in the builtins.
+
+// Exponential PDF: f(x; λ) = λ * e^{-λx}, x >= 0.
+fn exponential_pdf(lambda: f64, x: f64) -> f64 {
+    // TODO: guard x >= 0; return lambda * exp(-lambda * x)
+    return 0.0;
+}
+
+// Exponential CDF: F(x; λ) = 1 - e^{-λx}.
+fn exponential_cdf(lambda: f64, x: f64) -> f64 {
+    // TODO: guard x >= 0; return 1.0 - exp(-lambda * x)
+    return 0.0;
+}
+
+// Uniform PDF over [a, b].
+fn uniform_pdf(a: f64, b: f64, x: f64) -> f64 {
+    // TODO: guard a < b and a <= x <= b; return 1.0 / (b - a)
+    return 0.0;
+}
+
+// Uniform CDF: F(x) = (x - a) / (b - a).
+fn uniform_cdf(a: f64, b: f64, x: f64) -> f64 {
+    // TODO: clamp then (x - a) / (b - a)
+    return 0.0;
+}
+
+// Student's t-PDF (df degrees of freedom).
+// Uses builtins f64_tgamma, pow, sqrt, f64_pi.
+fn t_pdf(df: f64, x: f64) -> f64 {
+    // TODO: Γ((df+1)/2) / (sqrt(df*π) * Γ(df/2)) * (1 + x²/df)^{-(df+1)/2}
+    return 0.0;
+}
+
+// Beta PDF: f(x; α, β) = x^{α-1} * (1-x)^{β-1} / B(α, β).
+// B(α,β) = Γ(α)Γ(β)/Γ(α+β). Uses builtin f64_tgamma.
+fn beta_pdf(alpha: f64, beta: f64, x: f64) -> f64 {
+    // TODO: guard 0 < x < 1
+    //       B = f64_tgamma(alpha) * f64_tgamma(beta) / f64_tgamma(alpha+beta)
+    //       return pow(x, alpha-1) * pow(1-x, beta-1) / B
+    return 0.0;
+}
+
+// Chi-squared PDF with k degrees of freedom.
+// Uses builtin f64_tgamma, pow, exp.
+fn chi_squared_pdf(k: f64, x: f64) -> f64 {
+    // TODO: pow(x, k/2-1) * exp(-x/2) / (pow(2, k/2) * f64_tgamma(k/2))
+    return 0.0;
+}
+
+// ── Correlation and regression ────────────────────────────────────────────────
+
+// Pearson correlation coefficient of paired samples xs, ys.
+fn pearson_r(xs: Vec<f64>, ys: Vec<f64>) -> f64 {
+    // TODO: cov(xs,ys) / (std_dev(xs) * std_dev(ys))
+    return 0.0;
+}
+
+// Sample covariance.
+fn covariance(xs: Vec<f64>, ys: Vec<f64>) -> f64 {
+    // TODO: sum (xs[i]-mean_x)*(ys[i]-mean_y) / (n-1)
+    return 0.0;
+}
+
+// Ordinary least squares: returns (slope, intercept) as two values.
+// Simple 1-D linear regression y = slope * x + intercept.
+fn ols_slope(xs: Vec<f64>, ys: Vec<f64>) -> f64 {
+    // TODO: covariance(xs,ys) / variance(xs)
+    return 0.0;
+}
+
+fn ols_intercept(xs: Vec<f64>, ys: Vec<f64>) -> f64 {
+    // TODO: mean(ys) - ols_slope(xs,ys) * mean(xs)
+    return 0.0;
+}
+
+// ── Information theory ────────────────────────────────────────────────────────
+
+// Shannon entropy H(p) = -sum p_i * log2(p_i), where ps is a probability Vec.
+fn shannon_entropy(ps: Vec<f64>) -> f64 {
+    // TODO: guard all ps[i] > 0 and sum == 1
+    //       accumulate -p * log2(p) using builtin log2
+    return 0.0;
+}
+
+// KL divergence D_KL(p || q) = sum p_i * log(p_i / q_i).
+// Uses builtin log.
+fn kl_divergence(ps: Vec<f64>, qs: Vec<f64>) -> f64 {
+    // TODO: sum p * log(p/q) for each pair
+    return 0.0;
+}
+
+// Cross-entropy H(p, q) = -sum p_i * log(q_i).
+fn cross_entropy(ps: Vec<f64>, qs: Vec<f64>) -> f64 {
+    // TODO: -sum p * log(q)
+    return 0.0;
+}
+
+// ── Hypothesis testing ────────────────────────────────────────────────────────
+
+// One-sample t-statistic: t = (mean - mu0) / (std_dev / sqrt(n)).
+// Uses builtin sqrt.
+fn t_stat_one_sample(xs: Vec<f64>, mu0: f64) -> f64 {
+    // TODO: (mean(xs) - mu0) / (std_dev(xs) / sqrt(length(xs)))
+    return 0.0;
+}
+
+// Two-sample Welch t-statistic.
+fn t_stat_two_sample(xs: Vec<f64>, ys: Vec<f64>) -> f64 {
+    // TODO: (mean(xs) - mean(ys)) / sqrt(variance(xs)/nx + variance(ys)/ny)
+    return 0.0;
+}
+
+// Chi-squared test statistic: sum (observed - expected)² / expected.
+fn chi_squared_stat(observed: Vec<f64>, expected: Vec<f64>) -> f64 {
+    // TODO: loop and accumulate
+    return 0.0;
+}
+
+fn main() -> i64 {
+    return 0;
+}
