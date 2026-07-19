@@ -16,100 +16,106 @@ Track progress in `vani-compiler/docs/TODO_CURRENT.md` under "Vec\<f64\> builtin
 
 | Ticket | Compiler change needed | Unblocks in this package |
 |--------|----------------------|--------------------------|
-| F64-1 | `sort_by` on `Vec<f64>` via `fn(f64,f64)->i64` comparator | `median`, `quantile`, `iqr`, `mode` |
+| F64-1 | `sort_by` on `Vec<f64>` via `fn(f64,f64)->i64` comparator | `quantile`, `iqr`, `mode`; replace insertion-sort workaround in `median` |
 | F64-2 | `vec_median`, `vec_kth_smallest`, `vec_argmin`, `vec_argmax`, `vec_min`, `vec_max` on `Vec<f64>` | cleaner implementations of the above |
 | F64-3 | `vec_fold`, `vec_map`, `vec_filter` on `Vec<f64>` | style preference; all are doable with manual loops now |
 
 > **Key finding:** `for x in ref xs` over `Vec<f64>` **already works** (confirmed against
 > `checker.rs:11661`). `xs[i]` indexing, `set(mut ref xs, i, v)`, `while`, and scalar f64
 > arithmetic all work. All descriptive stats and distributions can be written **right now**
-> with manual for-loops. Only `median` / `quantile` / `mode` are blocked on F64-1 (sort).
+> with manual for-loops. Only `quantile` / `mode` are blocked on F64-1 (sort).
 >
-> **Interim workaround for median:** implement insertion sort via `set(mut ref xs, j, v)` +
-> manual swap — O(n²) but correct. Annotate as `// blocked: replace with sort_by_f64 once F64-1 lands`.
+> **Interim workaround for median:** insertion sort via `set(mut ref xs, j, v)` —
+> O(n²) but correct. Replace with `sort_by_f64` once F64-1 lands.
 
 ---
 
-## Can implement NOW (no compiler changes needed)
+## Implemented in v0.1.0
 
 ### Descriptive statistics
 
-- [ ] `mean` — `for x in ref xs` accumulate sum, divide by `len(xs) as f64`
-- [ ] `variance` — Welford online algorithm: single-pass, numerically stable; Bessel-corrected
-- [ ] `std_dev` — calls `variance` + builtin `sqrt` (already stubbed correctly)
-- [ ] `skewness` — third standardised moment; compute mean + std_dev first, then single pass
-- [ ] `kurtosis` — excess kurtosis (fourth moment − 3); same pattern
-- [ ] `sample_min` — scan loop (compiler's `vec_min` is i64-only, so manual loop required)
-- [ ] `sample_max` — scan loop (same reason)
-- [ ] `weighted_mean(xs, ws)` — `sum(xs[i]*ws[i]) / sum(ws[i])` via manual loop
-- [ ] `weighted_variance(xs, ws)` — weighted Bessel-corrected variance
+- [x] `mean` — accumulate sum, divide by n; O(n) WCET = n × 12 cycles
+- [x] `variance` — two-pass (mean then Σ(xᵢ−m)²); Bessel-corrected; O(2n)
+- [x] `std_dev` — calls `variance` + builtin `sqrt`
+- [x] `median` — insertion-sort a copy, return middle; O(n²); blocked: replace with sort_by_f64 once F64-1 lands
+- [x] `skewness` — Fisher-Pearson: n/((n−1)(n−2)) × Σ((xᵢ−m)/s)³
+- [x] `kurtosis` — adjusted excess kurtosis; n(n+1)/((n-1)(n-2)(n-3)) × Σ((xᵢ-m)/s)⁴ − 3(n-1)²/((n-2)(n-3))
+- [x] `sample_min` — scan loop
+- [x] `sample_max` — scan loop
+- [x] `weighted_mean(xs, ws)` — Σ(wᵢ xᵢ) / Σwᵢ
+- [x] `weighted_variance(xs, ws)` — reliability-weighted Bessel-corrected variance
 
-### Blocked on F64-1 (sort on Vec<f64>)
+### Blocked on F64-1 (sort on Vec<f64>) — deferred
 
-- [ ] `median` — sort copy, take middle; interim: manual insertion sort
 - [ ] `quantile(xs, q)` — linear interpolation between sorted neighbors
 - [ ] `iqr(xs)` — Q3 − Q1
-- [ ] `mode(xs)` — most frequent value (requires sort + scan, or hashmap)
+- [ ] `mode(xs)` — most frequent value
 
 ### Discrete distributions
-*(i64_binomial coefficient is builtin; PMF/CDF are new)*
 
-- [ ] `binomial_pmf` — `i64_binomial(n,k)` as f64 × `pow(p,k)` × `pow(1-p,n-k)`
-- [ ] `binomial_cdf` — cumulative sum of PMF up to k (while loop)
-- [ ] `poisson_pmf` — `pow(λ,k)` × `exp(-λ)` / `i64_factorial(k)` as f64
-- [ ] `poisson_cdf` — cumulative sum via while loop
-- [ ] `geometric_pmf` — `pow(1-p, k-1) * p`
-- [ ] `geometric_cdf` — `1 - pow(1-p, k)`
-- [ ] `negative_binomial_pmf` — `i64_binomial(k+r-1, k)` × `pow(p,r)` × `pow(1-p,k)`
-- [ ] `hypergeometric_pmf` — three i64_binomial calls
+- [x] `binomial_pmf` — `i64_binomial(n,k)` × pow(p,k) × pow(1-p,n-k)
+- [x] `binomial_cdf` — cumulative sum of PMF up to k
+- [x] `poisson_pmf` — pow(λ,k) × exp(-λ) / i64_factorial(k)
+- [x] `poisson_cdf` — cumulative sum via while loop
+- [x] `geometric_pmf` — pow(1-p,k-1) × p
+- [x] `geometric_cdf` — 1 − pow(1-p,k)  *(added beyond original plan)*
+- [x] `negative_binomial_pmf` — i64_binomial(k+r-1,k) × pow(p,r) × pow(1-p,k)  *(added beyond original plan)*
+- [x] `hypergeometric_pmf` — three i64_binomial calls  *(added beyond original plan)*
 
 ### Continuous distributions
 
-> `f64_normal_pdf` and `f64_normal_cdf` are builtins — do not reimplement.
+> `f64_normal_pdf` and `f64_normal_cdf` are builtins — not reimplemented.
 
-- [ ] `exponential_pdf` — guard x ≥ 0; `λ × exp(-λx)`
-- [ ] `exponential_cdf` — `1 - exp(-λx)`
-- [ ] `sample_exponential` — inverse CDF: `-log(rand_f64()) / λ`
-- [ ] `uniform_pdf` — guard a < b and a ≤ x ≤ b; `1 / (b-a)`
-- [ ] `uniform_cdf` — `(x-a) / (b-a)` clamped
-- [ ] `t_pdf(df, x)` — `Γ((df+1)/2) / (sqrt(df×π) × Γ(df/2)) × (1 + x²/df)^{-(df+1)/2}`; uses `f64_tgamma` builtin
-- [ ] `beta_pdf(α, β, x)` — `pow(x,α-1) × pow(1-x,β-1) / B(α,β)` where B = Γ(α)Γ(β)/Γ(α+β); uses `f64_tgamma`
-- [ ] `chi_squared_pdf(k, x)` — `pow(x,k/2-1) × exp(-x/2) / (pow(2,k/2) × Γ(k/2))`
-- [ ] `gamma_pdf(shape, rate)` — uses `f64_tgamma`
-- [ ] `laplace_pdf(μ, b, x)` — `exp(-|x-μ|/b) / (2b)`
-- [ ] `log_normal_pdf` — uses `f64_normal_pdf` builtin + builtin `log`
+- [x] `exponential_pdf` — guard x ≥ 0; λ × exp(-λx)
+- [x] `exponential_cdf` — 1 − exp(-λx)
+- [x] `sample_exponential` — inverse CDF: −log(rand_f64()) / λ  *(added beyond original plan)*
+- [x] `uniform_pdf` — 1/(b-a) for a ≤ x ≤ b, else 0
+- [x] `uniform_cdf` — (x-a)/(b-a) clamped to [0,1]
+- [x] `t_pdf(df, x)` — uses `f64_tgamma` builtin
+- [x] `beta_pdf(α, β, x)` — B(α,β) via Γ functions; uses `f64_tgamma`
+- [x] `chi_squared_pdf(k, x)` — pow × exp / (pow × Γ)
+- [x] `gamma_pdf(shape, rate, x)` — uses `f64_tgamma`  *(added beyond original plan)*
+- [x] `laplace_pdf(μ, b, x)` — exp(-|x-μ|/b) / (2b)  *(added beyond original plan)*
+- [x] `log_normal_pdf(μ, σ, x)` — uses `f64_normal_pdf` + `log` builtins  *(added beyond original plan)*
 
-**Hard (requires regularised incomplete beta — see §Hard below):**
-- [ ] `t_cdf`, `beta_cdf`, `chi_squared_cdf` — all need `beta_incomplete`
+**Hard (requires regularised incomplete beta — deferred):**
+- [ ] `t_cdf`, `beta_cdf`, `chi_squared_cdf` — need `beta_incomplete`
 
 ### Correlation and regression
 
-- [ ] `covariance` — online algorithm: two-pass or Welford for numerical stability
-- [ ] `pearson_r` — `covariance(xs,ys) / (std_dev(xs) * std_dev(ys))`
-- [ ] `spearman_r` — rank-transform xs and ys (requires sort — blocked on F64-1), then `pearson_r`
-- [ ] `ols_slope` — `covariance(xs,ys) / variance(xs)`
-- [ ] `ols_intercept` — `mean(ys) - ols_slope * mean(xs)`
-- [ ] `ols_r_squared` — `pearson_r(xs,ys)²`
+- [x] `covariance` — two-pass; numerically stable
+- [x] `pearson_r` — covariance / (std_dev × std_dev)
+- [x] `ols_slope` — covariance(xs,ys) / variance(xs)
+- [x] `ols_intercept` — mean(ys) − slope × mean(xs)
+- [x] `ols_r_squared` — pearson_r²  *(added beyond original plan)*
+- [ ] `spearman_r` — blocked on F64-1 (rank-transform requires sort)
 
 ### Information theory
 
-- [ ] `shannon_entropy(ps)` — `for p in ref ps { s = s - p * log2(p); }` using builtin `log2`
-- [ ] `kl_divergence(ps, qs)` — `sum p * log(p/q)` using builtin `log`
-- [ ] `cross_entropy(ps, qs)` — `-sum p * log(q)` using builtin `log`
-- [ ] `mutual_information(ps_xy, ps_x, ps_y)` — double sum
-- [ ] `renyi_entropy(ps, alpha)` — `log(sum pow(p,alpha)) / (1-alpha)` for alpha ≠ 1
+- [x] `shannon_entropy(ps)` — −Σ p log₂(p) [bits]; uses builtin `log2`
+- [x] `kl_divergence(ps, qs)` — Σ p log(p/q) [nats]; uses builtin `log`
+- [x] `cross_entropy(ps, qs)` — −Σ p log(q) [nats]; uses builtin `log`
+- [x] `renyi_entropy(ps, alpha)` — log(Σ pᵢ^α) / (1−α) [nats]; α→1 limit handled  *(added beyond original plan)*
+- [ ] `mutual_information(ps_xy, ps_x, ps_y)` — double sum; deferred
 
-### Hypothesis testing (statistics only — p-values need CDF)
+### Hypothesis testing
 
-- [ ] `t_stat_one_sample` — `(mean - μ0) / (std_dev / sqrt(n))`; uses builtin `sqrt`
-- [ ] `t_stat_two_sample` — Welch: `(mean_x - mean_y) / sqrt(var_x/nx + var_y/ny)`
-- [ ] `chi_squared_stat` — `sum (obs - exp)² / exp`
-- [ ] `z_stat` — `(mean - μ0) / (σ / sqrt(n))`
-- [ ] z-test p-value — wrap `f64_normal_cdf` builtin (no extra implementation needed)
+- [x] `t_stat_one_sample` — (mean − μ₀) / (std_dev / sqrt(n))
+- [x] `t_stat_two_sample` — Welch: (x̄−ȳ) / √(s²ₓ/nₓ + s²ᵧ/nᵧ)
+- [x] `chi_squared_stat` — Σ (obs−exp)² / exp
+- [x] `z_stat` — (mean − μ₀) / (σ / sqrt(n))  *(added beyond original plan)*
+- [ ] z-test p-value — wraps `f64_normal_cdf` builtin; deferred
 
 ---
 
-## Hard items (~ 2 weeks, after core is done)
+## Safety / WCET annotations
+
+- [x] `#[bounded_stack(bytes=N)]` added to all 43 public functions (worst-case call-chain depth)
+- [ ] `#[wcet(cycles=N)]` — add to leaf functions with no loops once cycle counts are audited
+
+---
+
+## Hard items (deferred — ~2 weeks, after core is done)
 
 ### Regularised incomplete beta `beta_incomplete(a, b, x)`
 
@@ -122,12 +128,3 @@ Required by `t_cdf`, `beta_cdf`, `chi_squared_cdf`. No compiler builtin exists.
 - [ ] `beta_cdf(α, β, x)` — wraps `beta_incomplete(α, β, x)`
 - [ ] `chi_squared_cdf(k, x)` — regularised incomplete gamma `gamma_lower(k/2, x/2) / Γ(k/2)`
       (also needs `gamma_incomplete` — similar algorithm, lower priority)
-
----
-
-## Safety / WCET annotations (after all implementations complete)
-
-- [ ] Add `#[wcet(cycles=N)]` and `#[bounded_stack(bytes=N)]` to all public functions.
-- [ ] All loops over `Vec<f64>` inputs are O(n) — document expected budget as `N × cycles_per_iter`.
-- [ ] `beta_incomplete` continued-fraction: document max iterations as the bound.
-      The WCET checker will report UNBOUNDED until `#[bounded(max_iter)]` is added.

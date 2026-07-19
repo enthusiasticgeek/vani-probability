@@ -1,227 +1,537 @@
 // vani-probability  v0.1.0 — probability and statistics library
 //
 // IMPORTANT — do NOT reimplement vāṇī compiler builtins.
-// The following are already available and must be called directly:
-//   f64_normal_pdf(x, mean, sd)  — Gaussian PDF
-//   f64_normal_cdf(x, mean, sd)  — Gaussian CDF
-//   rand_normal(mean, sd)        — sample from N(mean, sd²)
-//   rand_uniform(lo, hi)         — uniform sample on [lo, hi]
-//   rand_i64(lo, hi)             — uniform integer sample
-//   rand_f64()                   — uniform sample on [0, 1)
-//   rand_bool(p)                 — Bernoulli sample
-//   f64_erf / f64_erfc           — error function
-//   f64_tgamma / f64_lgamma      — gamma/log-gamma functions
-//   i64_factorial / i64_binomial / i64_perm
-//   f64_geometric_mean / f64_harmonic_mean / f64_quadratic_mean
+// Already available as builtins (call directly, never redeclare here):
+//   f64_normal_pdf(x, mean, sd)  f64_normal_cdf(x, mean, sd)
+//   rand_normal(mean, sd)  rand_uniform(lo, hi)  rand_i64(lo, hi)
+//   rand_f64()  rand_bool(p)  rand_in_range(lo, hi)
+//   f64_erf  f64_erfc  f64_tgamma  f64_lgamma
+//   i64_factorial  i64_binomial  i64_perm
+//   f64_geometric_mean  f64_harmonic_mean  f64_quadratic_mean  f64_l1_norm
+//   abs  sqrt  exp  log  log2  pow
 
-// ── Descriptive statistics ────────────────────────────────────────────────────
+// ── Descriptive statistics ─────────────────────────────────────────────────────
 
-// Arithmetic mean of a sample Vec<f64>.
-// Note: f64_geometric_mean / f64_harmonic_mean / f64_quadratic_mean
-//       are builtins; this provides the standard arithmetic mean.
-fn mean(xs: Vec<f64>) -> f64 {
-    // TODO: sum xs / length(xs)
-    return 0.0;
+// Arithmetic mean. WCET = n × 12 cycles.
+#[bounded_stack(bytes = 96)]
+fn mean(xs: ref Vec<f64>) -> f64 {
+    let n: i64 = len(xs) as i64;
+    if n == 0 { return 0.0; }
+    let s: f64 = 0.0;
+    let i: i64 = 0;
+    while i < n {
+        s = s + xs[i];
+        i = i + 1;
+    }
+    return s / (n as f64);
 }
 
-// Sample variance (Bessel-corrected, denominator n-1).
-fn variance(xs: Vec<f64>) -> f64 {
-    // TODO: compute mean, then sum (xi - mean)² / (n-1)
-    return 0.0;
+// Bessel-corrected sample variance (denominator n−1).
+// Two-pass: compute mean first, then Σ(xᵢ−m)². WCET = 2n × 16 cycles.
+#[bounded_stack(bytes = 208)]
+fn variance(xs: ref Vec<f64>) -> f64 {
+    let n: i64 = len(xs) as i64;
+    if n < 2 { return 0.0; }
+    let m: f64 = mean(xs);
+    let s: f64 = 0.0;
+    let i: i64 = 0;
+    while i < n {
+        let d: f64 = xs[i] - m;
+        s = s + d * d;
+        i = i + 1;
+    }
+    return s / ((n - 1) as f64);
 }
 
-// Sample standard deviation: sqrt(variance(xs)).
-// Uses builtin sqrt — not reimplemented.
-fn std_dev(xs: Vec<f64>) -> f64 {
+// Sample standard deviation: sqrt of Bessel-corrected variance.
+#[bounded_stack(bytes = 256)]
+fn std_dev(xs: ref Vec<f64>) -> f64 {
     return sqrt(variance(xs));
 }
 
-// Median: middle value (or average of two middle values) of a sorted copy.
-// TODO: sort xs copy, return middle.
-fn median(xs: Vec<f64>) -> f64 {
-    // TODO: sort then index
-    return 0.0;
+// Median: insertion-sort a copy, then return middle element.
+// Blocked on sort_by_f64 builtin (F64-1); replace when available.
+// WCET = n² × 15 cycles.
+#[bounded_stack(bytes = 152)]
+fn median(xs: ref Vec<f64>) -> f64 {
+    let n: i64 = len(xs) as i64;
+    if n == 0 { return 0.0; }
+    if n == 1 { return xs[0]; }
+    let copy: Vec<f64> = vec(xs[0]);
+    let ci: i64 = 1;
+    while ci < n {
+        push(mut ref copy, xs[ci]);
+        ci = ci + 1;
+    }
+    let j: i64 = 1;
+    while j < n {
+        let key: f64 = copy[j];
+        let k: i64 = j - 1;
+        while k >= 0 && copy[k] > key {
+            set(mut ref copy, k + 1, copy[k]);
+            k = k - 1;
+        }
+        set(mut ref copy, k + 1, key);
+        j = j + 1;
+    }
+    if n % 2 == 1 {
+        return copy[n / 2];
+    } else {
+        return (copy[n / 2 - 1] + copy[n / 2]) / 2.0;
+    }
 }
 
-// Sample skewness: third standardised moment E[(X-μ)³] / σ³.
-fn skewness(xs: Vec<f64>) -> f64 {
-    // TODO: implement using mean and std_dev above
-    return 0.0;
+// Fisher-Pearson sample skewness: n/((n−1)(n−2)) × Σ((xᵢ−m)/s)³.
+// WCET = 3n × 20 cycles.
+#[bounded_stack(bytes = 392)]
+fn skewness(xs: ref Vec<f64>) -> f64 {
+    let n: i64 = len(xs) as i64;
+    if n < 3 { return 0.0; }
+    let m: f64 = mean(xs);
+    let s: f64 = std_dev(xs);
+    if s < 1.0e-15 { return 0.0; }
+    let sum: f64 = 0.0;
+    let i: i64 = 0;
+    while i < n {
+        let d: f64 = (xs[i] - m) / s;
+        sum = sum + d * d * d;
+        i = i + 1;
+    }
+    let nf: f64 = n as f64;
+    return (nf / ((nf - 1.0) * (nf - 2.0))) * sum;
 }
 
-// Excess kurtosis: fourth standardised moment - 3.
-fn kurtosis(xs: Vec<f64>) -> f64 {
-    // TODO: E[(X-μ)⁴]/σ⁴ - 3
-    return 0.0;
+// Adjusted Fisher-Pearson excess kurtosis.
+// WCET = 3n × 22 cycles.
+#[bounded_stack(bytes = 408)]
+fn kurtosis(xs: ref Vec<f64>) -> f64 {
+    let n: i64 = len(xs) as i64;
+    if n < 4 { return 0.0; }
+    let m: f64 = mean(xs);
+    let s: f64 = std_dev(xs);
+    if s < 1.0e-15 { return 0.0; }
+    let sum: f64 = 0.0;
+    let i: i64 = 0;
+    while i < n {
+        let d: f64 = (xs[i] - m) / s;
+        sum = sum + d * d * d * d;
+        i = i + 1;
+    }
+    let nf: f64 = n as f64;
+    let a: f64 = nf * (nf + 1.0) / ((nf - 1.0) * (nf - 2.0) * (nf - 3.0));
+    let b: f64 = 3.0 * (nf - 1.0) * (nf - 1.0) / ((nf - 2.0) * (nf - 3.0));
+    return a * sum - b;
 }
 
-// Minimum and maximum of a sample.
-fn sample_min(xs: Vec<f64>) -> f64 {
-    // TODO: scan loop
-    return 0.0;
+// Minimum of a sample Vec. WCET = n × 8 cycles.
+#[bounded_stack(bytes = 96)]
+fn sample_min(xs: ref Vec<f64>) -> f64 {
+    let n: i64 = len(xs) as i64;
+    if n == 0 { return 0.0; }
+    let m: f64 = xs[0];
+    let i: i64 = 1;
+    while i < n {
+        if xs[i] < m { m = xs[i]; }
+        i = i + 1;
+    }
+    return m;
 }
 
-fn sample_max(xs: Vec<f64>) -> f64 {
-    // TODO: scan loop
-    return 0.0;
+// Maximum of a sample Vec. WCET = n × 8 cycles.
+#[bounded_stack(bytes = 96)]
+fn sample_max(xs: ref Vec<f64>) -> f64 {
+    let n: i64 = len(xs) as i64;
+    if n == 0 { return 0.0; }
+    let m: f64 = xs[0];
+    let i: i64 = 1;
+    while i < n {
+        if xs[i] > m { m = xs[i]; }
+        i = i + 1;
+    }
+    return m;
 }
 
-// ── Discrete distributions ────────────────────────────────────────────────────
-// Note: i64_binomial(n, k) is a builtin for the binomial coefficient.
-//       These functions compute PMFs/CDFs, which are NOT in the builtins.
+// Weighted arithmetic mean: Σ(wᵢ xᵢ) / Σwᵢ. WCET = n × 16 cycles.
+#[bounded_stack(bytes = 128)]
+fn weighted_mean(xs: ref Vec<f64>, ws: ref Vec<f64>) -> f64 {
+    let n: i64 = len(xs) as i64;
+    if n == 0 { return 0.0; }
+    let sw: f64 = 0.0;
+    let swx: f64 = 0.0;
+    let i: i64 = 0;
+    while i < n {
+        sw = sw + ws[i];
+        swx = swx + ws[i] * xs[i];
+        i = i + 1;
+    }
+    if sw < 1.0e-15 { return 0.0; }
+    return swx / sw;
+}
 
-// Binomial PMF: P(X = k) = C(n,k) * p^k * (1-p)^(n-k).
-// Uses builtin i64_binomial for the coefficient.
+// Reliability-weighted sample variance: Σwᵢ(xᵢ−m̄)² / (W − W₂/W),
+// where W = Σwᵢ, W₂ = Σwᵢ². WCET = 2n × 20 cycles.
+#[bounded_stack(bytes = 296)]
+fn weighted_variance(xs: ref Vec<f64>, ws: ref Vec<f64>) -> f64 {
+    let n: i64 = len(xs) as i64;
+    if n < 2 { return 0.0; }
+    let m: f64 = weighted_mean(xs, ws);
+    let sw: f64 = 0.0;
+    let sw2: f64 = 0.0;
+    let ss: f64 = 0.0;
+    let i: i64 = 0;
+    while i < n {
+        let d: f64 = xs[i] - m;
+        ss = ss + ws[i] * d * d;
+        sw = sw + ws[i];
+        sw2 = sw2 + ws[i] * ws[i];
+        i = i + 1;
+    }
+    let denom: f64 = sw - sw2 / sw;
+    if denom < 1.0e-15 { return 0.0; }
+    return ss / denom;
+}
+
+// ── Discrete distributions ─────────────────────────────────────────────────────
+// Note: i64_binomial(n,k) and i64_factorial(k) are builtins; PMFs/CDFs are not.
+
+// Binomial PMF: P(X=k) = C(n,k) p^k (1−p)^{n−k}. WCET ≈ 200 cycles.
+#[bounded_stack(bytes = 80)]
 fn binomial_pmf(n: i64, k: i64, p: f64) -> f64 {
-    // TODO: cast i64_binomial(n,k) to f64, multiply by pow(p,k)*pow(1-p,n-k)
-    return 0.0;
+    if k < 0 || k > n { return 0.0; }
+    let c: f64 = i64_binomial(n, k) as f64;
+    return c * pow(p, k as f64) * pow(1.0 - p, (n - k) as f64);
 }
 
-// Binomial CDF: P(X <= k).
+// Binomial CDF: P(X ≤ k) = Σᵢ₌₀ᵏ binomial_pmf(n,i,p).
+// WCET = (k+1) × 200 cycles.
+#[bounded_stack(bytes = 192)]
 fn binomial_cdf(n: i64, k: i64, p: f64) -> f64 {
-    // TODO: sum binomial_pmf(n, i, p) for i in 0..=k
-    return 0.0;
+    if k < 0 { return 0.0; }
+    if k >= n { return 1.0; }
+    let s: f64 = 0.0;
+    let i: i64 = 0;
+    while i <= k {
+        s = s + binomial_pmf(n, i, p);
+        i = i + 1;
+    }
+    return s;
 }
 
-// Poisson PMF: P(X = k) = λ^k * e^{-λ} / k!.
-// Uses builtins pow, exp, i64_factorial.
+// Poisson PMF: P(X=k) = λ^k e^{−λ} / k!. WCET ≈ 200 cycles.
+#[bounded_stack(bytes = 64)]
 fn poisson_pmf(lambda: f64, k: i64) -> f64 {
-    // TODO: pow(lambda, k) * exp(-lambda) / i64_factorial(k)
-    return 0.0;
+    if k < 0 { return 0.0; }
+    return pow(lambda, k as f64) * exp(0.0 - lambda) / (i64_factorial(k) as f64);
 }
 
-// Poisson CDF: P(X <= k) = sum_{i=0}^{k} poisson_pmf(lambda, i).
+// Poisson CDF: P(X ≤ k) = Σᵢ₌₀ᵏ poisson_pmf(λ,i).
+// WCET = (k+1) × 200 cycles.
+#[bounded_stack(bytes = 160)]
 fn poisson_cdf(lambda: f64, k: i64) -> f64 {
-    // TODO: cumulative sum
-    return 0.0;
+    if k < 0 { return 0.0; }
+    let s: f64 = 0.0;
+    let i: i64 = 0;
+    while i <= k {
+        s = s + poisson_pmf(lambda, i);
+        i = i + 1;
+    }
+    return s;
 }
 
-// Geometric PMF: P(X = k) = (1-p)^{k-1} * p  (number of trials until first success).
+// Geometric PMF (trials until first success): P(X=k) = (1−p)^{k−1} p. WCET ≈ 120 cycles.
+#[bounded_stack(bytes = 64)]
 fn geometric_pmf(p: f64, k: i64) -> f64 {
-    // TODO: pow(1.0 - p, k - 1) * p
-    return 0.0;
+    if k < 1 { return 0.0; }
+    return pow(1.0 - p, (k - 1) as f64) * p;
 }
 
-// ── Continuous distributions ──────────────────────────────────────────────────
-// Normal distribution: already builtin (f64_normal_pdf / f64_normal_cdf).
-// These add distributions NOT yet in the builtins.
+// Geometric CDF: P(X ≤ k) = 1 − (1−p)^k. WCET ≈ 100 cycles.
+#[bounded_stack(bytes = 64)]
+fn geometric_cdf(p: f64, k: i64) -> f64 {
+    if k < 1 { return 0.0; }
+    return 1.0 - pow(1.0 - p, k as f64);
+}
 
-// Exponential PDF: f(x; λ) = λ * e^{-λx}, x >= 0.
+// Negative binomial PMF: P(X=k) = C(k+r−1, k) p^r (1−p)^k.
+// r = target successes, k = failures before r-th success. WCET ≈ 200 cycles.
+#[bounded_stack(bytes = 80)]
+fn negative_binomial_pmf(r: i64, k: i64, p: f64) -> f64 {
+    if k < 0 { return 0.0; }
+    let c: f64 = i64_binomial(k + r - 1, k) as f64;
+    return c * pow(p, r as f64) * pow(1.0 - p, k as f64);
+}
+
+// Hypergeometric PMF: P(X=k) = C(K,k) C(N−K, n−k) / C(N,n).
+// N = population size, K = success states, n = draws, k = observed successes.
+// WCET ≈ 400 cycles.
+#[bounded_stack(bytes = 104)]
+fn hypergeometric_pmf(N: i64, K: i64, n: i64, k: i64) -> f64 {
+    if k < 0 || k > K || k > n || n - k > N - K { return 0.0; }
+    let num: f64 = (i64_binomial(K, k) as f64) * (i64_binomial(N - K, n - k) as f64);
+    let den: f64 = i64_binomial(N, n) as f64;
+    if den < 1.0e-15 { return 0.0; }
+    return num / den;
+}
+
+// ── Continuous distributions ───────────────────────────────────────────────────
+// Normal distribution: use builtins f64_normal_pdf(x,mean,sd) / f64_normal_cdf(x,mean,sd).
+
+// Exponential PDF: f(x;λ) = λ e^{−λx}, x ≥ 0. WCET ≈ 80 cycles.
+#[bounded_stack(bytes = 64)]
 fn exponential_pdf(lambda: f64, x: f64) -> f64 {
-    // TODO: guard x >= 0; return lambda * exp(-lambda * x)
-    return 0.0;
+    if x < 0.0 { return 0.0; }
+    return lambda * exp(0.0 - lambda * x);
 }
 
-// Exponential CDF: F(x; λ) = 1 - e^{-λx}.
+// Exponential CDF: F(x;λ) = 1 − e^{−λx}. WCET ≈ 80 cycles.
+#[bounded_stack(bytes = 64)]
 fn exponential_cdf(lambda: f64, x: f64) -> f64 {
-    // TODO: guard x >= 0; return 1.0 - exp(-lambda * x)
-    return 0.0;
+    if x < 0.0 { return 0.0; }
+    return 1.0 - exp(0.0 - lambda * x);
 }
 
-// Uniform PDF over [a, b].
+// Inverse-CDF sample from Exponential(λ): −log(U)/λ, U ~ Uniform(0,1). WCET ≈ 100 cycles.
+#[bounded_stack(bytes = 64)]
+fn sample_exponential(lambda: f64) -> f64 {
+    let u: f64 = rand_f64();
+    if u < 1.0e-15 { u = 1.0e-15; }
+    return (0.0 - log(u)) / lambda;
+}
+
+// Uniform PDF on [a,b]: 1/(b−a) for a ≤ x ≤ b, else 0. WCET ≈ 48 cycles.
+#[bounded_stack(bytes = 72)]
 fn uniform_pdf(a: f64, b: f64, x: f64) -> f64 {
-    // TODO: guard a < b and a <= x <= b; return 1.0 / (b - a)
-    return 0.0;
+    if x < a || x > b { return 0.0; }
+    return 1.0 / (b - a);
 }
 
-// Uniform CDF: F(x) = (x - a) / (b - a).
+// Uniform CDF: (x−a)/(b−a) clamped to [0,1]. WCET ≈ 48 cycles.
+#[bounded_stack(bytes = 80)]
 fn uniform_cdf(a: f64, b: f64, x: f64) -> f64 {
-    // TODO: clamp then (x - a) / (b - a)
-    return 0.0;
+    if x <= a { return 0.0; }
+    if x >= b { return 1.0; }
+    return (x - a) / (b - a);
 }
 
-// Student's t-PDF (df degrees of freedom).
-// Uses builtins f64_tgamma, pow, sqrt, f64_pi.
+// Student's t-PDF with df degrees of freedom. WCET ≈ 300 cycles.
+// Uses builtins f64_tgamma, sqrt, pow.
+#[bounded_stack(bytes = 72)]
 fn t_pdf(df: f64, x: f64) -> f64 {
-    // TODO: Γ((df+1)/2) / (sqrt(df*π) * Γ(df/2)) * (1 + x²/df)^{-(df+1)/2}
-    return 0.0;
+    let pi: f64 = 3.141592653589793;
+    let c: f64 = f64_tgamma((df + 1.0) / 2.0) / (sqrt(df * pi) * f64_tgamma(df / 2.0));
+    return c * pow(1.0 + x * x / df, 0.0 - (df + 1.0) / 2.0);
 }
 
-// Beta PDF: f(x; α, β) = x^{α-1} * (1-x)^{β-1} / B(α, β).
+// Beta PDF: f(x;α,β) = x^{α−1}(1−x)^{β−1} / B(α,β), for 0 < x < 1. WCET ≈ 350 cycles.
 // B(α,β) = Γ(α)Γ(β)/Γ(α+β). Uses builtin f64_tgamma.
+#[bounded_stack(bytes = 80)]
 fn beta_pdf(alpha: f64, beta: f64, x: f64) -> f64 {
-    // TODO: guard 0 < x < 1
-    //       B = f64_tgamma(alpha) * f64_tgamma(beta) / f64_tgamma(alpha+beta)
-    //       return pow(x, alpha-1) * pow(1-x, beta-1) / B
-    return 0.0;
+    if x <= 0.0 || x >= 1.0 { return 0.0; }
+    let B: f64 = f64_tgamma(alpha) * f64_tgamma(beta) / f64_tgamma(alpha + beta);
+    return pow(x, alpha - 1.0) * pow(1.0 - x, beta - 1.0) / B;
 }
 
-// Chi-squared PDF with k degrees of freedom.
-// Uses builtin f64_tgamma, pow, exp.
+// Chi-squared PDF with k degrees of freedom. WCET ≈ 280 cycles.
+// f(x;k) = x^{k/2−1} e^{−x/2} / (2^{k/2} Γ(k/2)), x > 0.
+#[bounded_stack(bytes = 64)]
 fn chi_squared_pdf(k: f64, x: f64) -> f64 {
-    // TODO: pow(x, k/2-1) * exp(-x/2) / (pow(2, k/2) * f64_tgamma(k/2))
-    return 0.0;
+    if x <= 0.0 { return 0.0; }
+    return pow(x, k / 2.0 - 1.0) * exp(0.0 - x / 2.0) / (pow(2.0, k / 2.0) * f64_tgamma(k / 2.0));
 }
 
-// ── Correlation and regression ────────────────────────────────────────────────
-
-// Pearson correlation coefficient of paired samples xs, ys.
-fn pearson_r(xs: Vec<f64>, ys: Vec<f64>) -> f64 {
-    // TODO: cov(xs,ys) / (std_dev(xs) * std_dev(ys))
-    return 0.0;
+// Gamma PDF with shape α and rate β: f(x;α,β) = β^α x^{α−1} e^{−βx} / Γ(α), x > 0. WCET ≈ 280 cycles.
+#[bounded_stack(bytes = 72)]
+fn gamma_pdf(shape: f64, rate: f64, x: f64) -> f64 {
+    if x <= 0.0 { return 0.0; }
+    return pow(rate, shape) * pow(x, shape - 1.0) * exp(0.0 - rate * x) / f64_tgamma(shape);
 }
 
-// Sample covariance.
-fn covariance(xs: Vec<f64>, ys: Vec<f64>) -> f64 {
-    // TODO: sum (xs[i]-mean_x)*(ys[i]-mean_y) / (n-1)
-    return 0.0;
+// Laplace PDF: f(x;μ,b) = e^{−|x−μ|/b} / (2b). WCET ≈ 80 cycles.
+#[bounded_stack(bytes = 64)]
+fn laplace_pdf(mu: f64, b: f64, x: f64) -> f64 {
+    return exp(0.0 - abs(x - mu) / b) / (2.0 * b);
 }
 
-// Ordinary least squares: returns (slope, intercept) as two values.
-// Simple 1-D linear regression y = slope * x + intercept.
-fn ols_slope(xs: Vec<f64>, ys: Vec<f64>) -> f64 {
-    // TODO: covariance(xs,ys) / variance(xs)
-    return 0.0;
+// Log-normal PDF: if X = e^Y and Y ~ N(μ,σ²), f(x) = φ(log x; μ,σ) / x, x > 0. WCET ≈ 120 cycles.
+// Uses builtin f64_normal_pdf.
+#[bounded_stack(bytes = 72)]
+fn log_normal_pdf(mu: f64, sigma: f64, x: f64) -> f64 {
+    if x <= 0.0 { return 0.0; }
+    return f64_normal_pdf(log(x), mu, sigma) / x;
 }
 
-fn ols_intercept(xs: Vec<f64>, ys: Vec<f64>) -> f64 {
-    // TODO: mean(ys) - ols_slope(xs,ys) * mean(xs)
-    return 0.0;
+// ── Correlation and regression ─────────────────────────────────────────────────
+
+// Sample covariance: Σ(xᵢ−x̄)(yᵢ−ȳ) / (n−1). WCET = 3n × 16 cycles.
+#[bounded_stack(bytes = 216)]
+fn covariance(xs: ref Vec<f64>, ys: ref Vec<f64>) -> f64 {
+    let n: i64 = len(xs) as i64;
+    if n < 2 { return 0.0; }
+    let mx: f64 = mean(xs);
+    let my: f64 = mean(ys);
+    let s: f64 = 0.0;
+    let i: i64 = 0;
+    while i < n {
+        s = s + (xs[i] - mx) * (ys[i] - my);
+        i = i + 1;
+    }
+    return s / ((n - 1) as f64);
 }
 
-// ── Information theory ────────────────────────────────────────────────────────
-
-// Shannon entropy H(p) = -sum p_i * log2(p_i), where ps is a probability Vec.
-fn shannon_entropy(ps: Vec<f64>) -> f64 {
-    // TODO: guard all ps[i] > 0 and sum == 1
-    //       accumulate -p * log2(p) using builtin log2
-    return 0.0;
+// Pearson correlation coefficient: cov(xs,ys) / (std_dev(xs) × std_dev(ys)).
+// WCET = 7n × 16 cycles.
+#[bounded_stack(bytes = 336)]
+fn pearson_r(xs: ref Vec<f64>, ys: ref Vec<f64>) -> f64 {
+    let sx: f64 = std_dev(xs);
+    let sy: f64 = std_dev(ys);
+    if sx < 1.0e-15 || sy < 1.0e-15 { return 0.0; }
+    return covariance(xs, ys) / (sx * sy);
 }
 
-// KL divergence D_KL(p || q) = sum p_i * log(p_i / q_i).
-// Uses builtin log.
-fn kl_divergence(ps: Vec<f64>, qs: Vec<f64>) -> f64 {
-    // TODO: sum p * log(p/q) for each pair
-    return 0.0;
+// OLS slope: cov(xs,ys) / var(xs). WCET = 5n × 16 cycles.
+#[bounded_stack(bytes = 288)]
+fn ols_slope(xs: ref Vec<f64>, ys: ref Vec<f64>) -> f64 {
+    let vx: f64 = variance(xs);
+    if vx < 1.0e-15 { return 0.0; }
+    return covariance(xs, ys) / vx;
 }
 
-// Cross-entropy H(p, q) = -sum p_i * log(q_i).
-fn cross_entropy(ps: Vec<f64>, qs: Vec<f64>) -> f64 {
-    // TODO: -sum p * log(q)
-    return 0.0;
+// OLS intercept: ȳ − slope × x̄. WCET = 7n × 16 cycles.
+#[bounded_stack(bytes = 344)]
+fn ols_intercept(xs: ref Vec<f64>, ys: ref Vec<f64>) -> f64 {
+    return mean(ys) - ols_slope(xs, ys) * mean(xs);
 }
 
-// ── Hypothesis testing ────────────────────────────────────────────────────────
-
-// One-sample t-statistic: t = (mean - mu0) / (std_dev / sqrt(n)).
-// Uses builtin sqrt.
-fn t_stat_one_sample(xs: Vec<f64>, mu0: f64) -> f64 {
-    // TODO: (mean(xs) - mu0) / (std_dev(xs) / sqrt(length(xs)))
-    return 0.0;
+// OLS coefficient of determination R²: (pearson_r)². WCET = 7n × 16 cycles.
+#[bounded_stack(bytes = 400)]
+fn ols_r_squared(xs: ref Vec<f64>, ys: ref Vec<f64>) -> f64 {
+    let r: f64 = pearson_r(xs, ys);
+    return r * r;
 }
 
-// Two-sample Welch t-statistic.
-fn t_stat_two_sample(xs: Vec<f64>, ys: Vec<f64>) -> f64 {
-    // TODO: (mean(xs) - mean(ys)) / sqrt(variance(xs)/nx + variance(ys)/ny)
-    return 0.0;
+// ── Information theory ─────────────────────────────────────────────────────────
+
+// Shannon entropy H(p) = −Σ pᵢ log₂(pᵢ) [bits]. Uses builtin log2.
+// WCET = n × 32 cycles.
+#[bounded_stack(bytes = 96)]
+fn shannon_entropy(ps: ref Vec<f64>) -> f64 {
+    let n: i64 = len(ps) as i64;
+    let s: f64 = 0.0;
+    let i: i64 = 0;
+    while i < n {
+        let p: f64 = ps[i];
+        if p > 0.0 { s = s - p * log2(p); }
+        i = i + 1;
+    }
+    return s;
 }
 
-// Chi-squared test statistic: sum (observed - expected)² / expected.
-fn chi_squared_stat(observed: Vec<f64>, expected: Vec<f64>) -> f64 {
-    // TODO: loop and accumulate
-    return 0.0;
+// KL divergence D_KL(p‖q) = Σ pᵢ log(pᵢ/qᵢ) [nats]. Uses builtin log.
+// WCET = n × 36 cycles.
+#[bounded_stack(bytes = 112)]
+fn kl_divergence(ps: ref Vec<f64>, qs: ref Vec<f64>) -> f64 {
+    let n: i64 = len(ps) as i64;
+    let s: f64 = 0.0;
+    let i: i64 = 0;
+    while i < n {
+        let p: f64 = ps[i];
+        let q: f64 = qs[i];
+        if p > 0.0 && q > 0.0 { s = s + p * log(p / q); }
+        i = i + 1;
+    }
+    return s;
 }
 
-fn main() -> i64 {
-    return 0;
+// Cross-entropy H(p,q) = −Σ pᵢ log(qᵢ) [nats]. Uses builtin log.
+// WCET = n × 36 cycles.
+#[bounded_stack(bytes = 112)]
+fn cross_entropy(ps: ref Vec<f64>, qs: ref Vec<f64>) -> f64 {
+    let n: i64 = len(ps) as i64;
+    let s: f64 = 0.0;
+    let i: i64 = 0;
+    while i < n {
+        let p: f64 = ps[i];
+        let q: f64 = qs[i];
+        if p > 0.0 && q > 0.0 { s = s - p * log(q); }
+        i = i + 1;
+    }
+    return s;
+}
+
+// Rényi entropy H_α(p) = log(Σ pᵢ^α) / (1−α) [nats].
+// At α→1 the limit equals natural-log Shannon entropy; handled separately.
+// WCET = n × 40 cycles.
+#[bounded_stack(bytes = 144)]
+fn renyi_entropy(ps: ref Vec<f64>, alpha: f64) -> f64 {
+    let n: i64 = len(ps) as i64;
+    if abs(alpha - 1.0) < 1.0e-12 {
+        let s2: f64 = 0.0;
+        let j: i64 = 0;
+        while j < n {
+            let p: f64 = ps[j];
+            if p > 0.0 { s2 = s2 - p * log(p); }
+            j = j + 1;
+        }
+        return s2;
+    }
+    let s: f64 = 0.0;
+    let i: i64 = 0;
+    while i < n {
+        if ps[i] > 0.0 { s = s + pow(ps[i], alpha); }
+        i = i + 1;
+    }
+    return log(s) / (1.0 - alpha);
+}
+
+// ── Hypothesis testing ─────────────────────────────────────────────────────────
+
+// One-sample t-statistic: (x̄ − μ₀) / (s / √n). WCET = 3n × 16 cycles.
+#[bounded_stack(bytes = 344)]
+fn t_stat_one_sample(xs: ref Vec<f64>, mu0: f64) -> f64 {
+    let n: i64 = len(xs) as i64;
+    if n < 2 { return 0.0; }
+    let s: f64 = std_dev(xs);
+    if s < 1.0e-15 { return 0.0; }
+    return (mean(xs) - mu0) / (s / sqrt(n as f64));
+}
+
+// Welch two-sample t-statistic: (x̄−ȳ) / √(s²ₓ/nₓ + s²ᵧ/nᵧ).
+// WCET = 7n × 16 cycles.
+#[bounded_stack(bytes = 320)]
+fn t_stat_two_sample(xs: ref Vec<f64>, ys: ref Vec<f64>) -> f64 {
+    let nx: i64 = len(xs) as i64;
+    let ny: i64 = len(ys) as i64;
+    if nx < 2 || ny < 2 { return 0.0; }
+    let vx: f64 = variance(xs);
+    let vy: f64 = variance(ys);
+    let denom: f64 = sqrt(vx / (nx as f64) + vy / (ny as f64));
+    if denom < 1.0e-15 { return 0.0; }
+    return (mean(xs) - mean(ys)) / denom;
+}
+
+// Chi-squared goodness-of-fit statistic: Σ (obsᵢ−expᵢ)² / expᵢ.
+// WCET = n × 20 cycles.
+#[bounded_stack(bytes = 112)]
+fn chi_squared_stat(observed: ref Vec<f64>, expected: ref Vec<f64>) -> f64 {
+    let n: i64 = len(observed) as i64;
+    let s: f64 = 0.0;
+    let i: i64 = 0;
+    while i < n {
+        let e: f64 = expected[i];
+        if e > 0.0 {
+            let d: f64 = observed[i] - e;
+            s = s + d * d / e;
+        }
+        i = i + 1;
+    }
+    return s;
+}
+
+// z-statistic for a known population σ: (x̄ − μ₀) / (σ / √n).
+// WCET = n × 14 cycles.
+#[bounded_stack(bytes = 176)]
+fn z_stat(xs: ref Vec<f64>, mu0: f64, sigma: f64) -> f64 {
+    let n: i64 = len(xs) as i64;
+    if n == 0 || sigma < 1.0e-15 { return 0.0; }
+    return (mean(xs) - mu0) / (sigma / sqrt(n as f64));
 }
