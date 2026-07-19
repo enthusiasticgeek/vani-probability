@@ -87,65 +87,65 @@ Track progress in `vani-compiler/docs/TODO_CURRENT.md` under "Vec\<f64\> builtin
 
 ---
 
-## v0.2.0 — Planned: Bayes, Markov chains, time series
+## v0.2.0 — Implemented ✓: Bayes, Markov chains, time series
 
 No new compiler features or companion repos required. All use flat `Vec<f64>` encoding.
 
 ### Conditional probability and Bayesian inference
 
-- [ ] `conditional_prob(p_ab, p_b)` — P(A|B) = P(A∩B)/P(B); guard P(B)>0
-- [ ] `law_of_total_prob(priors, likelihoods)` — P(B) = Σᵢ P(B|Aᵢ)P(Aᵢ); dot product of two Vecs
-- [ ] `bayes_posterior(priors, likelihoods)` — unnormalised posterior Vec: pᵢ × lᵢ for each hypothesis
-- [ ] `normalize_probs(ps)` — normalise a Vec to sum to 1.0; used after `bayes_posterior`
-- [ ] `bayes_log_posterior(log_priors, log_likelihoods)` — log-space to avoid underflow on many features
-- [ ] `naive_bayes_classify(log_priors, log_likelihoods_flat, n_classes, n_features)` — returns argmax class index
+- [x] `conditional_prob(p_ab, p_b)` — P(A|B) = P(A∩B)/P(B); guard P(B)>0
+- [x] `law_of_total_prob(priors, likelihoods)` — P(B) = Σᵢ P(B|Aᵢ)P(Aᵢ); dot product of two Vecs
+- [x] `bayes_posterior(priors, likelihoods)` — unnormalised posterior Vec: pᵢ × lᵢ for each hypothesis
+- [x] `normalize_probs(ps)` — normalise a Vec to sum to 1.0; used after `bayes_posterior`
+- [x] `bayes_log_posterior(log_priors, log_likelihoods)` — log-space to avoid underflow on many features
+- [x] `naive_bayes_classify(log_priors, log_likelihoods_flat, n_classes, n_features)` — returns argmax class index
 
 ### Discrete-time Markov chains
 
 Transition matrix T stored row-major flat: `T[i*n + j]` = P(state j | state i).
 Row sums must equal 1.0. Initial state distribution π₀ is a Vec<f64> of length n.
 
-- [ ] `markov_step(pi, T, n)` — one step: new_pi[j] = Σᵢ pi[i] × T[i*n+j]; returns new Vec
-- [ ] `markov_run(pi, T, n, steps)` — apply `markov_step` k times; returns final distribution
-- [ ] `markov_stationary(T, n, tol, max_iter)` — power iteration from uniform π₀; returns π∞
-- [ ] `markov_is_absorbing_state(T, n, state)` — returns T[state*n+state] == 1.0
-- [ ] `markov_tv_distance(pi, qi, n)` — total variation distance: 0.5 × Σ|πᵢ−qᵢ|
-- [ ] `markov_mixing_steps(T, n, eps, max_iter)` — steps from uniform until TV(π_k, π∞) < eps
-- [ ] `markov_entropy_rate(T, n, pi)` — H = −Σᵢ πᵢ Σⱼ T[i,j] log T[i,j] [nats]
+- [x] `markov_step(pi, T, n)` — one step: new_pi[j] = Σᵢ pi[i] × T[i*n+j]; returns new Vec
+- [x] `markov_run(pi, T, n, steps)` — apply `markov_step` k times; returns final distribution
+- [x] `markov_stationary(T, n, tol, max_iter)` — power iteration from uniform π₀; returns π∞
+- [x] `markov_is_absorbing_state(T, n, state)` — returns T[state*n+state] == 1.0
+- [x] `markov_tv_distance(pi, qi, n)` — total variation distance: 0.5 × Σ|πᵢ−qᵢ|
+- [x] `markov_mixing_steps(T, n, eps, max_iter)` — steps from uniform until TV(π_k, π∞) < eps
+- [x] `markov_entropy_rate(T, n, pi)` — H = −Σᵢ πᵢ Σⱼ T[i,j] log T[i,j] [nats]
 
 ### Time series and streaming statistics
 
-- [ ] `moving_average(xs, window)` — simple MA; returns Vec of length n−window+1
-- [ ] `ema(xs, alpha)` — exponential moving average; returns Vec same length as xs
-- [ ] `autocorrelation(xs, lag)` — sample ACF at lag k: corr(xᵢ, xᵢ₊ₖ)
-- [ ] `acf_vec(xs, max_lag)` — ACF for lags 0..max_lag; returns Vec of length max_lag+1
-- [ ] `diff_series(xs)` — first difference: yᵢ = xᵢ₊₁ − xᵢ; returns Vec of length n−1
-- [ ] `cumsum(xs)` — cumulative sum; returns Vec same length as xs
+- [x] `moving_average(xs, window)` — simple MA; returns Vec of length n−window+1
+- [x] `ema(xs, alpha)` — exponential moving average; returns Vec same length as xs
+- [x] `autocorrelation(xs, lag)` — sample ACF at lag k: corr(xᵢ, xᵢ₊ₖ)
+- [x] `acf_vec(xs, max_lag)` — ACF for lags 0..max_lag; returns Vec of length max_lag+1
+- [x] `diff_series(xs)` — first difference: yᵢ = xᵢ₊₁ − xᵢ; returns Vec of length n−1
+- [x] `cumsum(xs)` — cumulative sum; returns Vec same length as xs
 
 ### Online / streaming statistics (stateless helpers for Welford's algorithm)
 
 No Vec storage needed — user maintains scalars across stream events.
 
-- [ ] `welford_mean_update(old_mean, count, x)` — returns updated mean
-- [ ] `welford_m2_update(old_m2, old_mean, new_mean, x)` — returns updated M2 (sum of squared deviations)
-- [ ] `welford_variance(m2, count)` — returns Bessel-corrected variance from M2 and count
+- [x] `welford_mean_update(old_mean, count, x)` — returns updated mean
+- [x] `welford_m2_update(old_m2, old_mean, new_mean, x)` — returns updated M2 (sum of squared deviations)
+- [x] `welford_variance(m2, count)` — returns Bessel-corrected variance from M2 and count
 
 ### Extended regression and variance tests
 
-- [ ] `f_stat(xs, ys)` — F-statistic for variance ratio: var(xs)/var(ys); requires var(ys)>0
-- [ ] `pooled_variance(xs, ys)` — pooled sample variance for equal-variance t-test
-- [ ] `welch_df(xs, ys)` — Satterthwaite degrees of freedom for Welch t-test
-- [ ] `standardize(xs)` — z-score transform: returns new Vec of (xᵢ−m̄)/s
-- [ ] `mutual_information_discrete(ps_xy, ps_x, ps_y, nx, ny)` — Σᵢⱼ p(x,y)log(p(x,y)/(p(x)p(y))); flat joint
+- [x] `f_stat(xs, ys)` — F-statistic for variance ratio: var(xs)/var(ys); requires var(ys)>0
+- [x] `pooled_variance(xs, ys)` — pooled sample variance for equal-variance t-test
+- [x] `welch_df(xs, ys)` — Satterthwaite degrees of freedom for Welch t-test
+- [x] `standardize(xs)` — z-score transform: returns new Vec of (xᵢ−m̄)/s
+- [x] `mutual_information_discrete(ps_xy, ps_x, ps_y, nx, ny)` — Σᵢⱼ p(x,y)log(p(x,y)/(p(x)p(y))); flat joint
 
 ### Tests and examples for v0.2.0
-- [ ] `tests/test_bayes.vani` — conditional_prob, law_of_total, posterior, normalize
-- [ ] `tests/test_markov.vani` — step, stationary, entropy_rate, mixing_steps
-- [ ] `tests/test_timeseries.vani` — MA, EMA, ACF, diff, cumsum, Welford online
-- [ ] `tests/test_regression2.vani` — f_stat, pooled_variance, welch_df, standardize
-- [ ] `examples/markov_weather.vani` — 3-state (Sun/Cloud/Rain) Markov chain demo
-- [ ] `examples/bayes_medical.vani` — Bayesian diagnosis (prior + test sensitivity/specificity)
-- [ ] `examples/timeseries_demo.vani` — MA + EMA + ACF on a synthetic signal
+- [x] `tests/test_bayes.vani` — conditional_prob, law_of_total, posterior, normalize
+- [x] `tests/test_markov.vani` — step, stationary, entropy_rate, mixing_steps
+- [x] `tests/test_timeseries.vani` — MA, EMA, ACF, diff, cumsum, Welford online
+- [x] `tests/test_regression2.vani` — f_stat, pooled_variance, welch_df, standardize
+- [x] `examples/markov_weather.vani` — 3-state (Sun/Cloud/Rain) Markov chain demo
+- [x] `examples/bayes_medical.vani` — Bayesian diagnosis (prior + test sensitivity/specificity)
+- [x] `examples/timeseries_demo.vani` — MA + EMA + ACF on a synthetic signal
 
 ---
 
@@ -239,5 +239,7 @@ Needed by: `t_cdf`, `beta_cdf`, `f_cdf`, `binomial_cdf_exact`.
 ## Safety / WCET annotations
 
 - [x] `#[bounded_stack(bytes=N)]` on all v0.1.0 functions (worst-case call-chain depth)
+- [x] `#[bounded_stack(bytes=N)]` on all v0.2.0 functions (budgets verified against `vanic check`'s
+      exact worst-case-stack-depth diagnostics, not estimated by hand)
 - [ ] `#[wcet(cycles=N)]` on leaf functions with no loops — add after cycle audit
-- [ ] v0.2.0+ functions: annotate after implementation and `vanic stack-depth` run
+- [ ] v0.3.0+ functions: annotate after implementation and `vanic stack-depth` run

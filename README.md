@@ -2,14 +2,14 @@
 
 Probability and statistics library for the [vāṇī compiler](https://github.com/enthusiasticgeek/vani-compiler).
 
-Provides descriptive statistics, discrete and continuous distributions, correlation, OLS regression, information theory, and hypothesis testing — as pure vāṇī source. Does **not** reimplement anything already available as a vāṇī compiler builtin.
+Provides descriptive statistics, discrete and continuous distributions, correlation, OLS regression, information theory, hypothesis testing, Bayesian inference, Markov chains, and time series analysis — as pure vāṇī source. Does **not** reimplement anything already available as a vāṇī compiler builtin.
 
 ## Add to your project
 
 ```toml
 # vani.toml
 [deps]
-probability = { registry = "kosh", version = "^0.1" }
+probability = { registry = "kosh", version = "^0.2" }
 ```
 
 ```sh
@@ -17,17 +17,21 @@ vanic add probability
 vanic build
 ```
 
-## What's included (v0.1 stubs — see TODO.md for implementation status)
+## What's included (v0.2 — see TODO.md for implementation status)
 
 | Module | Functions |
 |---|---|
-| Descriptive | `mean`, `variance`, `std_dev`, `median`, `skewness`, `kurtosis`, `sample_min/max` |
-| Discrete distributions | `binomial_pmf/cdf`, `poisson_pmf/cdf`, `geometric_pmf` |
-| Continuous distributions | `exponential_pdf/cdf`, `uniform_pdf/cdf`, `t_pdf`, `beta_pdf`, `chi_squared_pdf` |
-| Correlation | `pearson_r`, `covariance` |
-| Regression | `ols_slope`, `ols_intercept` |
-| Information theory | `shannon_entropy`, `kl_divergence`, `cross_entropy` |
-| Hypothesis tests | `t_stat_one_sample`, `t_stat_two_sample`, `chi_squared_stat` |
+| Descriptive | `mean`, `variance`, `std_dev`, `median`, `skewness`, `kurtosis`, `sample_min/max`, `weighted_mean/variance` |
+| Discrete distributions | `binomial_pmf/cdf`, `poisson_pmf/cdf`, `geometric_pmf/cdf`, `negative_binomial_pmf`, `hypergeometric_pmf` |
+| Continuous distributions | `exponential_pdf/cdf`, `uniform_pdf/cdf`, `t_pdf`, `beta_pdf`, `chi_squared_pdf`, `gamma_pdf`, `laplace_pdf`, `log_normal_pdf` |
+| Correlation & regression | `covariance`, `pearson_r`, `ols_slope/intercept/r_squared` |
+| Information theory | `shannon_entropy`, `kl_divergence`, `cross_entropy`, `renyi_entropy` |
+| Hypothesis tests | `t_stat_one_sample/two_sample`, `chi_squared_stat`, `z_stat` |
+| Bayesian inference | `conditional_prob`, `law_of_total_prob`, `bayes_posterior`, `normalize_probs`, `bayes_log_posterior`, `naive_bayes_classify` |
+| Markov chains | `markov_step/run/stationary`, `markov_is_absorbing_state`, `markov_tv_distance`, `markov_mixing_steps`, `markov_entropy_rate` |
+| Time series | `moving_average`, `ema`, `autocorrelation`, `acf_vec`, `diff_series`, `cumsum` |
+| Streaming stats | `welford_mean_update`, `welford_m2_update`, `welford_variance` |
+| Extended regression | `f_stat`, `pooled_variance`, `welch_df`, `standardize`, `mutual_information_discrete` |
 
 ## What this library does NOT provide
 
