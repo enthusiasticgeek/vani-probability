@@ -149,7 +149,7 @@ No Vec storage needed — user maintains scalars across stream events.
 
 ---
 
-## v0.3.0 — Planned: Special functions → CDFs and p-values
+## v0.3.0 — Implemented ✓: Special functions → CDFs and p-values
 
 Implements regularised incomplete gamma and beta as **private helpers** (prefixed `_`).
 No new companion repos required.
@@ -158,35 +158,35 @@ No new companion repos required.
 
 Needed by: `chi_squared_cdf`, `gamma_cdf`, `poisson_cdf_exact`.
 
-- [ ] `_gamma_reg_series(a, x)` — series expansion for x ≤ a+1: P(a,x) = e^{−x} x^a / Γ(a) × Σ xⁿ/∏(a+k)
-- [ ] `_gamma_reg_cf(a, x)` — continued-fraction via Lentz for x > a+1: Q(a,x) = 1−P(a,x)
-- [ ] `_gamma_reg(a, x)` — router: uses series for small x, CF for large x; guard x≤0→0, a≤0→0
-- [ ] `chi_squared_cdf(k, x)` — P(k/2, x/2) using `_gamma_reg`
-- [ ] `gamma_cdf(shape, rate, x)` — P(shape, rate×x)
-- [ ] `exponential_cdf_exact(lambda, x)` — already closed-form; mark as complete via existing formula
+- [x] `_gamma_reg_series(a, x)` — series expansion for x ≤ a+1: P(a,x) = e^{−x} x^a / Γ(a) × Σ xⁿ/∏(a+k)
+- [x] `_gamma_reg_cf(a, x)` — continued-fraction via Lentz for x > a+1: Q(a,x) = 1−P(a,x)
+- [x] `_gamma_reg(a, x)` — router: uses series for small x, CF for large x; guard x≤0→0, a≤0→0
+- [x] `chi_squared_cdf(k, x)` — P(k/2, x/2) using `_gamma_reg`
+- [x] `gamma_cdf(shape, rate, x)` — P(shape, rate×x)
+- [x] `exponential_cdf_exact(lambda, x)` — already closed-form; mark as complete via existing formula
 
 ### Regularised incomplete beta I_x(a,b)
 
 Needed by: `t_cdf`, `beta_cdf`, `f_cdf`, `binomial_cdf_exact`.
 
-- [ ] `_beta_cf(a, b, x)` — Lentz's modified continued fraction; ~40 iterations to convergence
-- [ ] `_beta_reg(a, b, x)` — uses CF with symmetry relation I_x(a,b) = 1 − I_{1-x}(b,a) when x > (a+1)/(a+b+2)
-- [ ] `t_cdf(df, t)` — 1 − I_{df/(df+t²)}(df/2, 1/2) / 2; two-tailed via sign(t)
-- [ ] `beta_cdf(alpha, beta, x)` — I_x(alpha, beta) via `_beta_reg`
-- [ ] `f_cdf(df1, df2, x)` — I_{df1×x/(df1×x+df2)}(df1/2, df2/2) via `_beta_reg`
+- [x] `_beta_cf(a, b, x)` — Lentz's modified continued fraction; ~40 iterations to convergence
+- [x] `_beta_reg(a, b, x)` — uses CF with symmetry relation I_x(a,b) = 1 − I_{1-x}(b,a) when x > (a+1)/(a+b+2)
+- [x] `t_cdf(df, t)` — 1 − I_{df/(df+t²)}(df/2, 1/2) / 2; two-tailed via sign(t)
+- [x] `beta_cdf(alpha, beta, x)` — I_x(alpha, beta) via `_beta_reg`
+- [x] `f_cdf(df1, df2, x)` — I_{df1×x/(df1×x+df2)}(df1/2, df2/2) via `_beta_reg`
 
 ### p-values using existing test statistics + new CDFs
 
-- [ ] `t_pvalue_two_tailed(t, df)` — 2 × (1 − t_cdf(df, |t|)); uses `t_cdf`
-- [ ] `chi_squared_pvalue(stat, df)` — 1 − chi_squared_cdf(df, stat)
-- [ ] `z_pvalue_two_tailed(z)` — 2 × (1 − f64_normal_cdf(|z|, 0, 1)); uses compiler builtin
-- [ ] `f_pvalue(f, df1, df2)` — 1 − f_cdf(df1, df2, f)
+- [x] `t_pvalue_two_tailed(t, df)` — 2 × (1 − t_cdf(df, |t|)); uses `t_cdf`
+- [x] `chi_squared_pvalue(stat, df)` — 1 − chi_squared_cdf(df, stat)
+- [x] `z_pvalue_two_tailed(z)` — 2 × (1 − f64_normal_cdf(|z|, 0, 1)); uses compiler builtin
+- [x] `f_pvalue(f, df1, df2)` — 1 − f_cdf(df1, df2, f)
 
 ### Tests and examples for v0.3.0
-- [ ] `tests/test_special.vani` — gamma_reg series + CF crosscheck, beta_reg symmetry, convergence
-- [ ] `tests/test_cdfs.vani` — chi_squared_cdf spot values, t_cdf vs tables, f_cdf
-- [ ] `tests/test_pvalues.vani` — z_pvalue, t_pvalue, chi_squared_pvalue known cases
-- [ ] `examples/hypothesis_full.vani` — end-to-end: raw data → stat → df → p-value → decision
+- [x] `tests/test_special.vani` — gamma_reg series + CF crosscheck, beta_reg symmetry, convergence
+- [x] `tests/test_cdfs.vani` — chi_squared_cdf spot values, t_cdf vs tables, f_cdf
+- [x] `tests/test_pvalues.vani` — z_pvalue, t_pvalue, chi_squared_pvalue known cases
+- [x] `examples/hypothesis_full.vani` — end-to-end: raw data → stat → df → p-value → decision
 
 ---
 
@@ -241,5 +241,7 @@ Needed by: `t_cdf`, `beta_cdf`, `f_cdf`, `binomial_cdf_exact`.
 - [x] `#[bounded_stack(bytes=N)]` on all v0.1.0 functions (worst-case call-chain depth)
 - [x] `#[bounded_stack(bytes=N)]` on all v0.2.0 functions (budgets verified against `vanic check`'s
       exact worst-case-stack-depth diagnostics, not estimated by hand)
+- [x] `#[bounded_stack(bytes=N)]` on all v0.3.0 functions (same verification method; the Lentz
+      continued-fraction helpers needed noticeably larger budgets than the hand estimate)
 - [ ] `#[wcet(cycles=N)]` on leaf functions with no loops — add after cycle audit
-- [ ] v0.3.0+ functions: annotate after implementation and `vanic stack-depth` run
+- [ ] v0.4.0+ functions: annotate after implementation and `vanic stack-depth` run

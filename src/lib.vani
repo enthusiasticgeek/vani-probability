@@ -992,3 +992,196 @@ fn mutual_information_discrete(ps_xy: ref Vec<f64>, ps_x: ref Vec<f64>, ps_y: re
     }
     return s;
 }
+
+// ── Special functions (private helpers) ──────────────────────────────────────
+// Regularised incomplete gamma P(a,x) = γ(a,x)/Γ(a), and regularised incomplete
+// beta I_x(a,b), via the standard series + Lentz continued-fraction algorithms.
+// Kept private (leading `_`) per TODO.md's v0.3.0 plan: extract to a shared
+// vani-special repo only if a second consumer (e.g. vani-calculus) appears.
+
+// Series expansion for the regularised incomplete gamma P(a,x), valid for x <= a+1.
+// WCET ≈ 200 × 20 cycles (iteration cap).
+#[bounded_stack(bytes = 128)]
+fn _gamma_reg_series(a: f64, x: f64) -> f64 {
+    let gln: f64 = f64_lgamma(a);
+    let ap: f64 = a;
+    let sum: f64 = 1.0 / a;
+    let del: f64 = sum;
+    let n: i64 = 0;
+    while n < 200 {
+        ap = ap + 1.0;
+        del = del * x / ap;
+        sum = sum + del;
+        if abs(del) < abs(sum) * 1.0e-14 { break; }
+        n = n + 1;
+    }
+    return sum * exp(0.0 - x + a * log(x) - gln);
+}
+
+// Lentz continued fraction for the regularised incomplete gamma's complement
+// Q(a,x) = 1 - P(a,x), valid for x > a+1. WCET ≈ 200 × 24 cycles.
+#[bounded_stack(bytes = 200)]
+fn _gamma_reg_cf(a: f64, x: f64) -> f64 {
+    let gln: f64 = f64_lgamma(a);
+    let fpmin: f64 = 1.0e-300;
+    let b: f64 = x + 1.0 - a;
+    let c: f64 = 1.0 / fpmin;
+    let d: f64 = 1.0 / b;
+    let h: f64 = d;
+    let i: i64 = 1;
+    while i < 200 {
+        let fi: f64 = i as f64;
+        let an: f64 = 0.0 - fi * (fi - a);
+        b = b + 2.0;
+        d = an * d + b;
+        if abs(d) < fpmin { d = fpmin; }
+        c = b + an / c;
+        if abs(c) < fpmin { c = fpmin; }
+        d = 1.0 / d;
+        let delta: f64 = d * c;
+        h = h * delta;
+        if abs(delta - 1.0) < 1.0e-14 { break; }
+        i = i + 1;
+    }
+    return exp(0.0 - x + a * log(x) - gln) * h;
+}
+
+// Regularised incomplete gamma P(a,x) = γ(a,x)/Γ(a); routes to series or
+// continued fraction depending on x. Guards x<=0 -> 0, a<=0 -> 0.
+#[bounded_stack(bytes = 264)]
+fn _gamma_reg(a: f64, x: f64) -> f64 {
+    if x <= 0.0 || a <= 0.0 { return 0.0; }
+    if x < a + 1.0 {
+        return _gamma_reg_series(a, x);
+    } else {
+        return 1.0 - _gamma_reg_cf(a, x);
+    }
+}
+
+// Chi-squared CDF with k degrees of freedom: P(k/2, x/2).
+#[bounded_stack(bytes = 320)]
+fn chi_squared_cdf(k: f64, x: f64) -> f64 {
+    return _gamma_reg(k / 2.0, x / 2.0);
+}
+
+// Gamma CDF with shape and rate parameters: P(shape, rate×x).
+#[bounded_stack(bytes = 328)]
+fn gamma_cdf(shape: f64, rate: f64, x: f64) -> f64 {
+    return _gamma_reg(shape, rate * x);
+}
+
+// Exponential CDF, exact closed form -- identical to exponential_cdf, listed
+// separately in the v0.3.0 catalog as the "exact" companion to the
+// regularised-incomplete-gamma-based CDFs above.
+#[bounded_stack(bytes = 120)]
+fn exponential_cdf_exact(lambda: f64, x: f64) -> f64 {
+    return exponential_cdf(lambda, x);
+}
+
+// Lentz continued fraction for the regularised incomplete beta function
+// (the piece used by both branches of _beta_reg's symmetry relation).
+// WCET ≈ 200 × 28 cycles.
+#[bounded_stack(bytes = 288)]
+fn _beta_cf(a: f64, b: f64, x: f64) -> f64 {
+    let fpmin: f64 = 1.0e-300;
+    let qab: f64 = a + b;
+    let qap: f64 = a + 1.0;
+    let qam: f64 = a - 1.0;
+    let c: f64 = 1.0;
+    let d: f64 = 1.0 - qab * x / qap;
+    if abs(d) < fpmin { d = fpmin; }
+    d = 1.0 / d;
+    let h: f64 = d;
+    let m: i64 = 1;
+    while m < 200 {
+        let fm: f64 = m as f64;
+        let m2: f64 = 2.0 * fm;
+        let aa1: f64 = fm * (b - fm) * x / ((qam + m2) * (a + m2));
+        d = 1.0 + aa1 * d;
+        if abs(d) < fpmin { d = fpmin; }
+        c = 1.0 + aa1 / c;
+        if abs(c) < fpmin { c = fpmin; }
+        d = 1.0 / d;
+        h = h * d * c;
+        let aa2: f64 = 0.0 - (a + fm) * (qab + fm) * x / ((a + m2) * (qap + m2));
+        d = 1.0 + aa2 * d;
+        if abs(d) < fpmin { d = fpmin; }
+        c = 1.0 + aa2 / c;
+        if abs(c) < fpmin { c = fpmin; }
+        d = 1.0 / d;
+        let delta: f64 = d * c;
+        h = h * delta;
+        if abs(delta - 1.0) < 1.0e-14 { break; }
+        m = m + 1;
+    }
+    return h;
+}
+
+// Regularised incomplete beta I_x(a,b), via continued fraction with the
+// symmetry relation I_x(a,b) = 1 - I_{1-x}(b,a) for numerical stability when
+// x is close to 1. Guards x<=0 -> 0, x>=1 -> 1.
+#[bounded_stack(bytes = 376)]
+fn _beta_reg(a: f64, b: f64, x: f64) -> f64 {
+    if x <= 0.0 { return 0.0; }
+    if x >= 1.0 { return 1.0; }
+    let bt: f64 = exp(f64_lgamma(a + b) - f64_lgamma(a) - f64_lgamma(b) + a * log(x) + b * log(1.0 - x));
+    if x < (a + 1.0) / (a + b + 2.0) {
+        return bt * _beta_cf(a, b, x) / a;
+    } else {
+        return 1.0 - bt * _beta_cf(b, a, 1.0 - x) / b;
+    }
+}
+
+// Student's t CDF with df degrees of freedom, via the incomplete beta relation:
+// F(t) = 1 - 0.5×I_x(df/2, 1/2) for t>=0, F(t) = 0.5×I_x(df/2, 1/2) for t<0,
+// where x = df/(df+t²).
+#[bounded_stack(bytes = 448)]
+fn t_cdf(df: f64, t: f64) -> f64 {
+    let x: f64 = df / (df + t * t);
+    let ib: f64 = _beta_reg(df / 2.0, 0.5, x);
+    if t >= 0.0 {
+        return 1.0 - 0.5 * ib;
+    } else {
+        return 0.5 * ib;
+    }
+}
+
+// Beta distribution CDF: I_x(alpha, beta).
+#[bounded_stack(bytes = 440)]
+fn beta_cdf(alpha: f64, beta: f64, x: f64) -> f64 {
+    return _beta_reg(alpha, beta, x);
+}
+
+// F-distribution CDF: I_y(df1/2, df2/2) where y = df1×x / (df1×x + df2).
+#[bounded_stack(bytes = 456)]
+fn f_cdf(df1: f64, df2: f64, x: f64) -> f64 {
+    if x <= 0.0 { return 0.0; }
+    let y: f64 = df1 * x / (df1 * x + df2);
+    return _beta_reg(df1 / 2.0, df2 / 2.0, y);
+}
+
+// ── p-values from test statistics ────────────────────────────────────────────
+
+// Two-tailed p-value from a t-statistic: 2 × (1 − t_cdf(df, |t|)).
+#[bounded_stack(bytes = 504)]
+fn t_pvalue_two_tailed(t: f64, df: f64) -> f64 {
+    return 2.0 * (1.0 - t_cdf(df, abs(t)));
+}
+
+// Upper-tail p-value from a chi-squared statistic: 1 − chi_squared_cdf(df, stat).
+#[bounded_stack(bytes = 376)]
+fn chi_squared_pvalue(stat: f64, df: f64) -> f64 {
+    return 1.0 - chi_squared_cdf(df, stat);
+}
+
+// Two-tailed p-value from a z-statistic, using the compiler's normal CDF builtin.
+#[bounded_stack(bytes = 48)]
+fn z_pvalue_two_tailed(z: f64) -> f64 {
+    return 2.0 * (1.0 - f64_normal_cdf(abs(z), 0.0, 1.0));
+}
+
+// Upper-tail p-value from an F-statistic: 1 − f_cdf(df1, df2, f).
+#[bounded_stack(bytes = 520)]
+fn f_pvalue(f: f64, df1: f64, df2: f64) -> f64 {
+    return 1.0 - f_cdf(df1, df2, f);
+}

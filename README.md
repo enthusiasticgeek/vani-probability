@@ -2,14 +2,14 @@
 
 Probability and statistics library for the [vāṇī compiler](https://github.com/enthusiasticgeek/vani-compiler).
 
-Provides descriptive statistics, discrete and continuous distributions, correlation, OLS regression, information theory, hypothesis testing, Bayesian inference, Markov chains, and time series analysis — as pure vāṇī source. Does **not** reimplement anything already available as a vāṇī compiler builtin.
+Provides descriptive statistics, discrete and continuous distributions, correlation, OLS regression, information theory, hypothesis testing, Bayesian inference, Markov chains, time series analysis, and CDF/p-value hypothesis testing — as pure vāṇī source. Does **not** reimplement anything already available as a vāṇī compiler builtin.
 
 ## Add to your project
 
 ```toml
 # vani.toml
 [deps]
-probability = { registry = "kosh", version = "^0.2" }
+probability = { registry = "kosh", version = "^0.3" }
 ```
 
 ```sh
@@ -17,7 +17,7 @@ vanic add probability
 vanic build
 ```
 
-## What's included (v0.2 — see TODO.md for implementation status)
+## What's included (v0.3 — see TODO.md for implementation status)
 
 | Module | Functions |
 |---|---|
@@ -32,6 +32,8 @@ vanic build
 | Time series | `moving_average`, `ema`, `autocorrelation`, `acf_vec`, `diff_series`, `cumsum` |
 | Streaming stats | `welford_mean_update`, `welford_m2_update`, `welford_variance` |
 | Extended regression | `f_stat`, `pooled_variance`, `welch_df`, `standardize`, `mutual_information_discrete` |
+| Special functions & CDFs | `chi_squared_cdf`, `gamma_cdf`, `exponential_cdf_exact`, `t_cdf`, `beta_cdf`, `f_cdf` |
+| p-values | `t_pvalue_two_tailed`, `chi_squared_pvalue`, `z_pvalue_two_tailed`, `f_pvalue` |
 
 ## What this library does NOT provide
 
