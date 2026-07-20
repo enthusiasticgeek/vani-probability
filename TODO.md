@@ -49,19 +49,16 @@ Track progress in `vani-compiler/docs/TODO_CURRENT.md` under "Vec\<f64\> builtin
 
 | Ticket | Compiler change needed | Unblocks in this package |
 |--------|----------------------|--------------------------|
-| F64-1 | `sort_by` on `Vec<f64>` via `fn(f64,f64)->i64` comparator | `quantile`, `iqr`, `mode`, `spearman_r`, `mann_whitney_u_stat`; cleaner `median` |
+| F64-1 | ~~`sort_by` on `Vec<f64>`~~ -- landed 2026-07-13 (vani-compiler commit b5c7ec5) | Unblocked `quantile`, `iqr`, `mode`, `spearman_r`, `mann_whitney_u_stat`, `kolmogorov_smirnov_stat`, cleaner `median` -- all shipped in this package |
 | F64-2 | `vec_median`, `vec_kth_smallest`, `vec_argmin`, `vec_argmax` on `Vec<f64>` | style preference only |
 | F64-3 | `vec_fold`, `vec_map`, `vec_filter` on `Vec<f64>` | style preference; all doable with manual loops |
-
-> **Interim workaround for median:** insertion sort on a Vec copy — O(n²) but correct.
-> Replace with `sort_by_f64` once F64-1 lands.
 
 ---
 
 ## v0.1.0 — Implemented ✓
 
 ### Descriptive statistics (10 functions)
-- [x] `mean`, `variance`, `std_dev`, `median` (insertion-sort workaround), `skewness`, `kurtosis`
+- [x] `mean`, `variance`, `std_dev`, `median` (rewritten on `sort_by` once F64-1 landed), `skewness`, `kurtosis`
 - [x] `sample_min`, `sample_max`, `weighted_mean`, `weighted_variance`
 
 ### Discrete distributions (8 functions)
@@ -225,14 +222,16 @@ Needed by: `t_cdf`, `beta_cdf`, `f_cdf`, `binomial_cdf_exact`.
 
 ---
 
-## Deferred (sort required — blocked on F64-1)
+## Deferred -- Implemented ✓ (F64-1 landed in vani-compiler 2026-07-13, unblocking these)
 
-- [ ] `quantile(xs, q)` — linear interpolation between sorted neighbors
-- [ ] `iqr(xs)` — Q3 − Q1
-- [ ] `mode(xs)` — most frequent value (sort + scan)
-- [ ] `spearman_r(xs, ys)` — rank-transform then pearson_r; both sort passes needed
-- [ ] `mann_whitney_u_stat(xs, ys)` — nonparametric; needs sorted merge
-- [ ] `kolmogorov_smirnov_stat(xs, ys)` — nonparametric; needs sorted empirical CDFs
+- [x] `quantile(xs, q)` — linear interpolation between sorted neighbors
+- [x] `iqr(xs)` — Q3 − Q1
+- [x] `mode(xs)` — most frequent value (sort + scan)
+- [x] `spearman_r(xs, ys)` — rank-transform then pearson_r; both sort passes needed
+- [x] `mann_whitney_u_stat(xs, ys)` — nonparametric; needs sorted merge
+- [x] `kolmogorov_smirnov_stat(xs, ys)` — nonparametric; needs sorted empirical CDFs
+- [x] `tests/test_deferred.vani` — quantile, iqr, mode, spearman_r (monotonic + inverse),
+      mann_whitney_u_stat (separation + complementarity), kolmogorov_smirnov_stat
 
 ---
 
@@ -246,4 +245,6 @@ Needed by: `t_cdf`, `beta_cdf`, `f_cdf`, `binomial_cdf_exact`.
 - [x] `#[bounded_stack(bytes=N)]` on all v0.4.0 functions (same verification method; the
       vani-matrix call chains -- e.g. `kalman_update` fanning out through `mat_inv_n` -- needed
       the largest budgets in the library so far, up to 1064 bytes)
+- [x] `#[bounded_stack(bytes=N)]` on the deferred functions and the rewritten `median`
+      (same verification method)
 - [ ] `#[wcet(cycles=N)]` on leaf functions with no loops — add after cycle audit

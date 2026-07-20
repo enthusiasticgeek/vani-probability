@@ -16,6 +16,29 @@
 // see [deps] in vani.toml.
 use "../thirdparty/matrix/src/lib.vani";
 
+// Ascending comparator for sort_by on Vec<f64> (F64-1, landed in the
+// compiler 2026-07-13). Negative/zero/positive per the strcmp convention.
+#[bounded_stack(bytes = 72)]
+fn _f64_asc(a: f64, b: f64) -> i64 {
+    if a < b { return -1; }
+    if a > b { return 1; }
+    return 0;
+}
+
+// Sorted ascending copy of xs; does not mutate the caller's Vec.
+#[bounded_stack(bytes = 112)]
+fn _sorted_copy(xs: ref Vec<f64>) -> Vec<f64> {
+    let n: i64 = len(xs) as i64;
+    let out: Vec<f64> = vec();
+    let i: i64 = 0;
+    while i < n {
+        push(mut ref out, xs[i]);
+        i = i + 1;
+    }
+    sort_by(mut ref out, _f64_asc);
+    return out;
+}
+
 // ── Descriptive statistics ─────────────────────────────────────────────────────
 
 // Arithmetic mean. WCET = n × 12 cycles.
@@ -55,35 +78,19 @@ fn std_dev(xs: ref Vec<f64>) -> f64 {
     return sqrt(variance(xs));
 }
 
-// Median: insertion-sort a copy, then return middle element.
-// Blocked on sort_by_f64 builtin (F64-1); replace when available.
-// WCET = n² × 15 cycles.
-#[bounded_stack(bytes = 152)]
+// Median via sort_by (F64-1 landed 2026-07-13; this used to be an O(n²)
+// insertion sort worked around the missing builtin -- see TODO.md history).
+// WCET dominated by the sort; O(n log n) expected.
+#[bounded_stack(bytes = 208)]
 fn median(xs: ref Vec<f64>) -> f64 {
     let n: i64 = len(xs) as i64;
     if n == 0 { return 0.0; }
     if n == 1 { return xs[0]; }
-    let copy: Vec<f64> = vec(xs[0]);
-    let ci: i64 = 1;
-    while ci < n {
-        push(mut ref copy, xs[ci]);
-        ci = ci + 1;
-    }
-    let j: i64 = 1;
-    while j < n {
-        let key: f64 = copy[j];
-        let k: i64 = j - 1;
-        while k >= 0 && copy[k] > key {
-            set(mut ref copy, k + 1, copy[k]);
-            k = k - 1;
-        }
-        set(mut ref copy, k + 1, key);
-        j = j + 1;
-    }
+    let sorted: Vec<f64> = _sorted_copy(xs);
     if n % 2 == 1 {
-        return copy[n / 2];
+        return sorted[n / 2];
     } else {
-        return (copy[n / 2 - 1] + copy[n / 2]) / 2.0;
+        return (sorted[n / 2 - 1] + sorted[n / 2]) / 2.0;
     }
 }
 
@@ -1485,4 +1492,166 @@ fn kalman_update(x: ref Vec<f64>, P: ref Vec<f64>, z: ref Vec<f64>, H: ref Vec<f
         i5 = i5 + 1;
     }
     return out;
+}
+
+// ── Deferred (were blocked on F64-1, sort_by on Vec<f64> -- landed 2026-07-13) ───
+
+// q-th quantile via linear interpolation between sorted neighbors (R's
+// default "type 7" method). q is clamped to [0,1].
+#[bounded_stack(bytes = 280)]
+fn quantile(xs: ref Vec<f64>, q: f64) -> f64 {
+    let n: i64 = len(xs) as i64;
+    if n == 0 { return 0.0; }
+    if n == 1 { return xs[0]; }
+    let sorted: Vec<f64> = _sorted_copy(xs);
+    let qq: f64 = q;
+    if qq < 0.0 { qq = 0.0; }
+    if qq > 1.0 { qq = 1.0; }
+    let idx: f64 = qq * ((n - 1) as f64);
+    let lo: i64 = idx as i64;
+    let hi: i64 = lo + 1;
+    if hi >= n { return sorted[n - 1]; }
+    let frac: f64 = idx - (lo as f64);
+    return sorted[lo] + frac * (sorted[hi] - sorted[lo]);
+}
+
+// Interquartile range: Q3 - Q1.
+#[bounded_stack(bytes = 328)]
+fn iqr(xs: ref Vec<f64>) -> f64 {
+    return quantile(xs, 0.75) - quantile(xs, 0.25);
+}
+
+// Most frequent value (sort + scan). Ties broken toward the smaller value.
+#[bounded_stack(bytes = 280)]
+fn mode(xs: ref Vec<f64>) -> f64 {
+    let n: i64 = len(xs) as i64;
+    if n == 0 { return 0.0; }
+    let sorted: Vec<f64> = _sorted_copy(xs);
+    let best_val: f64 = sorted[0];
+    let best_count: i64 = 1;
+    let cur_val: f64 = sorted[0];
+    let cur_count: i64 = 1;
+    let i: i64 = 1;
+    while i < n {
+        if abs(sorted[i] - cur_val) < 1.0e-12 {
+            cur_count = cur_count + 1;
+        } else {
+            cur_val = sorted[i];
+            cur_count = 1;
+        }
+        if cur_count > best_count {
+            best_count = cur_count;
+            best_val = cur_val;
+        }
+        i = i + 1;
+    }
+    return best_val;
+}
+
+// Fractional rank transform with tie-averaging: rank_i = (count less than x_i)
+// + (count equal to x_i, including itself, + 1) / 2. Pairwise O(n²); avoids
+// needing an index-paired sort (Vec<f64> sort_by has no way to carry a
+// parallel index array through the comparator in v1).
+#[bounded_stack(bytes = 168)]
+fn _rank_transform(xs: ref Vec<f64>) -> Vec<f64> {
+    let n: i64 = len(xs) as i64;
+    let ranks: Vec<f64> = vec();
+    let i: i64 = 0;
+    while i < n {
+        let less_count: i64 = 0;
+        let equal_count: i64 = 0;
+        let j: i64 = 0;
+        while j < n {
+            if xs[j] < xs[i] { less_count = less_count + 1; }
+            if abs(xs[j] - xs[i]) < 1.0e-12 { equal_count = equal_count + 1; }
+            j = j + 1;
+        }
+        let rank: f64 = (less_count as f64) + ((equal_count as f64) + 1.0) / 2.0;
+        push(mut ref ranks, rank);
+        i = i + 1;
+    }
+    return ranks;
+}
+
+// Spearman rank correlation: pearson_r of the rank-transformed samples.
+#[bounded_stack(bytes = 440)]
+fn spearman_r(xs: ref Vec<f64>, ys: ref Vec<f64>) -> f64 {
+    let rx: Vec<f64> = _rank_transform(xs);
+    let ry: Vec<f64> = _rank_transform(ys);
+    return pearson_r(ref rx, ref ry);
+}
+
+// Mann-Whitney U statistic (nonparametric two-sample test): rank the pooled
+// sample (tie-averaged), sum the ranks of group 1 (R1), then
+// U = R1 - n1(n1+1)/2. U=0 means group 1 is entirely below group 2.
+#[bounded_stack(bytes = 360)]
+fn mann_whitney_u_stat(xs: ref Vec<f64>, ys: ref Vec<f64>) -> f64 {
+    let nx: i64 = len(xs) as i64;
+    let ny: i64 = len(ys) as i64;
+    let combined: Vec<f64> = vec();
+    let i: i64 = 0;
+    while i < nx {
+        push(mut ref combined, xs[i]);
+        i = i + 1;
+    }
+    let j: i64 = 0;
+    while j < ny {
+        push(mut ref combined, ys[j]);
+        j = j + 1;
+    }
+    let ranks: Vec<f64> = _rank_transform(ref combined);
+    let r1: f64 = 0.0;
+    let k: i64 = 0;
+    while k < nx {
+        r1 = r1 + ranks[k];
+        k = k + 1;
+    }
+    let n1f: f64 = nx as f64;
+    return r1 - n1f * (n1f + 1.0) / 2.0;
+}
+
+// Kolmogorov-Smirnov statistic (nonparametric two-sample test): the maximum
+// absolute gap between the two samples' empirical CDFs, evaluated at every
+// point in the pooled sample (where a step function can only change).
+// D=0 means identical distributions; D=1 means fully separated samples.
+#[bounded_stack(bytes = 272)]
+fn kolmogorov_smirnov_stat(xs: ref Vec<f64>, ys: ref Vec<f64>) -> f64 {
+    let nx: i64 = len(xs) as i64;
+    let ny: i64 = len(ys) as i64;
+    if nx == 0 || ny == 0 { return 0.0; }
+    let combined: Vec<f64> = vec();
+    let i: i64 = 0;
+    while i < nx {
+        push(mut ref combined, xs[i]);
+        i = i + 1;
+    }
+    let j: i64 = 0;
+    while j < ny {
+        push(mut ref combined, ys[j]);
+        j = j + 1;
+    }
+    let n_total: i64 = nx + ny;
+    let max_d: f64 = 0.0;
+    let k: i64 = 0;
+    while k < n_total {
+        let t: f64 = combined[k];
+        let cx: i64 = 0;
+        let m: i64 = 0;
+        while m < nx {
+            if xs[m] <= t { cx = cx + 1; }
+            m = m + 1;
+        }
+        let cy: i64 = 0;
+        let p: i64 = 0;
+        while p < ny {
+            if ys[p] <= t { cy = cy + 1; }
+            p = p + 1;
+        }
+        let f1: f64 = (cx as f64) / (nx as f64);
+        let f2: f64 = (cy as f64) / (ny as f64);
+        let d: f64 = abs(f1 - f2);
+        if d > max_d { max_d = d; }
+        k = k + 1;
+    }
+    return max_d;
 }

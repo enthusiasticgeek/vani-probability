@@ -3,6 +3,16 @@
 This directory is a bundled copy of [vani-matrix](https://github.com/enthusiasticgeek/vani-matrix)
 v0.1.0 (`src/lib.vani` + `vani.toml`, unmodified).
 
+**Provenance:** these two files were extracted from the published
+`matrix-v0.1.0` release tarball on the Kosh registry
+(https://github.com/enthusiasticgeek/kosh-index/releases/tag/matrix-v0.1.0)
+and verified against its registry checksum before being copied in --
+not taken from an untracked local working copy.
+
+```
+sha256(matrix-0.1.0.tar.gz) = 0ab90c551054aefd49b28ca7db4bd1c8e6df2980c052f102ef7e96a47b403448
+```
+
 ## Why a bundled copy instead of a normal dependency?
 
 The vāṇी compiler's `vanic publish` does not yet resolve transitive

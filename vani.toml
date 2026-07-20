@@ -1,8 +1,8 @@
 [package]
 name    = "probability"
-version = "0.4.0"
+version = "0.4.1"
 entry   = "src/lib.vani"
-authors = ["enthusiasticgeek"]
+authors = "enthusiasticgeek"
 license = "MIT"
 description = "Probability and statistics for vāṇī: descriptive stats, distributions, hypothesis tests, regression, entropy, Bayesian inference, Markov chains, time series, CDF/p-value hypothesis testing, multiple linear regression, PCA, and stochastic processes."
 registry = "kosh"

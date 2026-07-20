@@ -9,7 +9,7 @@ Provides descriptive statistics, discrete and continuous distributions, correlat
 ```toml
 # vani.toml
 [deps]
-probability = { registry = "kosh", version = "^0.4" }
+probability = { registry = "kosh", version = "^0.4.1" }
 ```
 
 ```sh
@@ -19,16 +19,17 @@ vanic build
 
 From v0.4 onward this package depends on [`vani-matrix`](https://github.com/enthusiasticgeek/vani-matrix) (dense linear algebra) for the multiple-linear-regression, PCA, and Kalman-filter functions; `vanic add` resolves it transitively.
 
-## What's included (v0.4 — see TODO.md for implementation status)
+## What's included (v0.4.1 — see TODO.md for implementation status)
 
 | Module | Functions |
 |---|---|
-| Descriptive | `mean`, `variance`, `std_dev`, `median`, `skewness`, `kurtosis`, `sample_min/max`, `weighted_mean/variance` |
+| Descriptive | `mean`, `variance`, `std_dev`, `median`, `skewness`, `kurtosis`, `sample_min/max`, `weighted_mean/variance`, `quantile`, `iqr`, `mode` |
 | Discrete distributions | `binomial_pmf/cdf`, `poisson_pmf/cdf`, `geometric_pmf/cdf`, `negative_binomial_pmf`, `hypergeometric_pmf` |
 | Continuous distributions | `exponential_pdf/cdf`, `uniform_pdf/cdf`, `t_pdf`, `beta_pdf`, `chi_squared_pdf`, `gamma_pdf`, `laplace_pdf`, `log_normal_pdf` |
 | Correlation & regression | `covariance`, `pearson_r`, `ols_slope/intercept/r_squared` |
 | Information theory | `shannon_entropy`, `kl_divergence`, `cross_entropy`, `renyi_entropy` |
 | Hypothesis tests | `t_stat_one_sample/two_sample`, `chi_squared_stat`, `z_stat` |
+| Nonparametric tests | `spearman_r`, `mann_whitney_u_stat`, `kolmogorov_smirnov_stat` |
 | Bayesian inference | `conditional_prob`, `law_of_total_prob`, `bayes_posterior`, `normalize_probs`, `bayes_log_posterior`, `naive_bayes_classify` |
 | Markov chains | `markov_step/run/stationary`, `markov_is_absorbing_state`, `markov_tv_distance`, `markov_mixing_steps`, `markov_entropy_rate` |
 | Time series | `moving_average`, `ema`, `autocorrelation`, `acf_vec`, `diff_series`, `cumsum` |
