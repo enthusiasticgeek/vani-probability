@@ -190,38 +190,38 @@ Needed by: `t_cdf`, `beta_cdf`, `f_cdf`, `binomial_cdf_exact`.
 
 ---
 
-## v0.4.0 — Planned: Matrix-dependent features
+## v0.4.0 — Implemented ✓: Matrix-dependent features
 
-**Prerequisite: vani-matrix repo must exist and be added to `[deps]` in vani.toml.**
+**Prerequisite met**: vani-matrix is complete and added to `[deps]` in vani.toml (path dependency, `use "../../vani-matrix/src/lib.vani"` from src/lib.vani).
 
 ### Multiple linear regression (needs mat_inv_n)
 
-- [ ] `mlr_fit(X_flat, y, n_obs, n_pred)` — β = (XᵀX)⁻¹ Xᵀy; returns coefficient Vec
-- [ ] `mlr_predict(X_flat, beta, n_obs, n_pred)` — ŷ = X β
-- [ ] `mlr_residuals(y, y_hat)` — r = y − ŷ
-- [ ] `mlr_r_squared(y, y_hat)` — 1 − SS_res/SS_tot
-- [ ] `mlr_adj_r_squared(y, y_hat, n_pred)` — adjusted R²
+- [x] `mlr_fit(X_flat, y, n_obs, n_pred)` — β = (XᵀX)⁻¹ Xᵀy; returns coefficient Vec
+- [x] `mlr_predict(X_flat, beta, n_obs, n_pred)` — ŷ = X β
+- [x] `mlr_residuals(y, y_hat)` — r = y − ŷ
+- [x] `mlr_r_squared(y, y_hat)` — 1 − SS_res/SS_tot
+- [x] `mlr_adj_r_squared(y, y_hat, n_pred)` — adjusted R²
 
 ### Covariance matrix
-- [ ] `cov_matrix(X_flat, n_obs, n_vars)` — returns flat n_vars × n_vars matrix; two-pass
-- [ ] `correlation_matrix(X_flat, n_obs, n_vars)` — standardise cov_matrix rows+cols by std_devs
+- [x] `cov_matrix(X_flat, n_obs, n_vars)` — returns flat n_vars × n_vars matrix; two-pass
+- [x] `correlation_matrix(X_flat, n_obs, n_vars)` — standardise cov_matrix rows+cols by std_devs
 
 ### Dimensionality reduction
-- [ ] `pca_power_iter(cov_flat, n, max_iter, tol)` — first principal component via power iteration
-- [ ] `pca_deflate(cov_flat, n, pc1)` — deflate matrix for second component extraction
+- [x] `pca_power_iter(cov_flat, n, max_iter, tol)` — first principal component via power iteration
+- [x] `pca_deflate(cov_flat, n, pc1)` — deflate matrix for second component extraction
 
 ### Stochastic processes
-- [ ] `random_walk_1d(n_steps, sigma)` — returns Vec of n_steps positions; uses rand_normal
-- [ ] `geometric_brownian(s0, mu, sigma, dt, n_steps)` — GBM path via Euler-Maruyama
-- [ ] `kalman_predict(x, P, F, Q, n)` — Kalman filter predict step (flat matrices)
-- [ ] `kalman_update(x, P, z, H, R, n, m)` — Kalman filter update step
+- [x] `random_walk_1d(n_steps, sigma)` — returns Vec of n_steps positions; uses rand_normal
+- [x] `geometric_brownian(s0, mu, sigma, dt, n_steps)` — GBM path via Euler-Maruyama
+- [x] `kalman_predict(x, P, F, Q, n)` — Kalman filter predict step (flat matrices)
+- [x] `kalman_update(x, P, z, H, R, n, m)` — Kalman filter update step
 
 ### Tests and examples for v0.4.0
-- [ ] `tests/test_mlr.vani` — fit y=2x1+3x2+1, verify coefficients, R²=1
-- [ ] `tests/test_cov_matrix.vani` — identity input → identity cov; 2D correlated data
-- [ ] `tests/test_stochastic.vani` — random_walk mean≈0, GBM positive paths
-- [ ] `examples/portfolio_demo.vani` — GBM multi-asset simulation with correlations
-- [ ] `examples/kalman_demo.vani` — 1D position tracking under noisy measurement
+- [x] `tests/test_mlr.vani` — fit y=2x1+3x2+1, verify coefficients, R²=1
+- [x] `tests/test_cov_matrix.vani` — identity input → identity cov; 2D correlated data
+- [x] `tests/test_stochastic.vani` — random_walk mean≈0, GBM positive paths
+- [x] `examples/portfolio_demo.vani` — GBM multi-asset simulation with correlations
+- [x] `examples/kalman_demo.vani` — 1D position tracking under noisy measurement
 
 ---
 
@@ -243,5 +243,7 @@ Needed by: `t_cdf`, `beta_cdf`, `f_cdf`, `binomial_cdf_exact`.
       exact worst-case-stack-depth diagnostics, not estimated by hand)
 - [x] `#[bounded_stack(bytes=N)]` on all v0.3.0 functions (same verification method; the Lentz
       continued-fraction helpers needed noticeably larger budgets than the hand estimate)
+- [x] `#[bounded_stack(bytes=N)]` on all v0.4.0 functions (same verification method; the
+      vani-matrix call chains -- e.g. `kalman_update` fanning out through `mat_inv_n` -- needed
+      the largest budgets in the library so far, up to 1064 bytes)
 - [ ] `#[wcet(cycles=N)]` on leaf functions with no loops — add after cycle audit
-- [ ] v0.4.0+ functions: annotate after implementation and `vanic stack-depth` run

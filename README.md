@@ -2,14 +2,14 @@
 
 Probability and statistics library for the [vāṇī compiler](https://github.com/enthusiasticgeek/vani-compiler).
 
-Provides descriptive statistics, discrete and continuous distributions, correlation, OLS regression, information theory, hypothesis testing, Bayesian inference, Markov chains, time series analysis, and CDF/p-value hypothesis testing — as pure vāṇī source. Does **not** reimplement anything already available as a vāṇī compiler builtin.
+Provides descriptive statistics, discrete and continuous distributions, correlation, OLS regression, information theory, hypothesis testing, Bayesian inference, Markov chains, time series analysis, CDF/p-value hypothesis testing, multiple linear regression, PCA, and stochastic processes (depends on vani-matrix from v0.4 onward) — as pure vāṇī source. Does **not** reimplement anything already available as a vāṇī compiler builtin.
 
 ## Add to your project
 
 ```toml
 # vani.toml
 [deps]
-probability = { registry = "kosh", version = "^0.3" }
+probability = { registry = "kosh", version = "^0.4" }
 ```
 
 ```sh
@@ -17,7 +17,9 @@ vanic add probability
 vanic build
 ```
 
-## What's included (v0.3 — see TODO.md for implementation status)
+From v0.4 onward this package depends on [`vani-matrix`](https://github.com/enthusiasticgeek/vani-matrix) (dense linear algebra) for the multiple-linear-regression, PCA, and Kalman-filter functions; `vanic add` resolves it transitively.
+
+## What's included (v0.4 — see TODO.md for implementation status)
 
 | Module | Functions |
 |---|---|
@@ -34,6 +36,10 @@ vanic build
 | Extended regression | `f_stat`, `pooled_variance`, `welch_df`, `standardize`, `mutual_information_discrete` |
 | Special functions & CDFs | `chi_squared_cdf`, `gamma_cdf`, `exponential_cdf_exact`, `t_cdf`, `beta_cdf`, `f_cdf` |
 | p-values | `t_pvalue_two_tailed`, `chi_squared_pvalue`, `z_pvalue_two_tailed`, `f_pvalue` |
+| Multiple linear regression | `mlr_fit`, `mlr_predict`, `mlr_residuals`, `mlr_r_squared`, `mlr_adj_r_squared` |
+| Covariance & correlation matrices | `cov_matrix`, `correlation_matrix` |
+| Dimensionality reduction | `pca_power_iter`, `pca_deflate` |
+| Stochastic processes | `random_walk_1d`, `geometric_brownian`, `kalman_predict`, `kalman_update` |
 
 ## What this library does NOT provide
 
@@ -43,7 +49,7 @@ These are already vāṇī compiler builtins — use them directly with no impor
 |---|---|
 | `f64_normal_pdf(x, mean, sd)` | Gaussian PDF |
 | `f64_normal_cdf(x, mean, sd)` | Gaussian CDF |
-| `rand_normal(mean, sd)` | Sample from N(mean, sd²) |
+| `rand_normal()` | Sample from N(0,1) -- scale/shift yourself for N(mean, sd²) |
 | `rand_uniform(lo, hi)` | Uniform sample on [lo, hi] |
 | `rand_f64()` | Uniform sample on [0, 1) |
 | `rand_bool(p)` | Bernoulli sample |
