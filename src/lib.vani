@@ -12,9 +12,10 @@
 //   abs  sqrt  exp  log  log2  pow
 //
 // v0.4.0 depends on vani-matrix for dense linear algebra (mat_mul_rect,
-// mat_inv_n, mat_transpose, mat_vec_mul, vec_norm2, dot_n, vec_outer) --
-// see [deps] in vani.toml.
-use "../thirdparty/matrix/src/lib.vani";
+// mat_inv_n, mat_transpose, mat_vec_mul, vec_norm2, dot_n, vec_outer),
+// added via `vanic add matrix` (vendored + checksum-verified) -- see
+// [deps] in vani.toml.
+use "../vendor/matrix/src/lib.vani";
 
 // Ascending comparator for sort_by on Vec<f64> (F64-1, landed in the
 // compiler 2026-07-13). Negative/zero/positive per the strcmp convention.

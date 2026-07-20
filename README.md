@@ -9,7 +9,7 @@ Provides descriptive statistics, discrete and continuous distributions, correlat
 ```toml
 # vani.toml
 [deps]
-probability = { registry = "kosh", version = "^0.4.1" }
+probability = { registry = "kosh", version = "^0.4.2" }
 ```
 
 ```sh
@@ -19,7 +19,7 @@ vanic build
 
 From v0.4 onward this package depends on [`vani-matrix`](https://github.com/enthusiasticgeek/vani-matrix) (dense linear algebra) for the multiple-linear-regression, PCA, and Kalman-filter functions; `vanic add` resolves it transitively.
 
-## What's included (v0.4.1 — see TODO.md for implementation status)
+## What's included (v0.4.2 — see TODO.md for implementation status)
 
 | Module | Functions |
 |---|---|

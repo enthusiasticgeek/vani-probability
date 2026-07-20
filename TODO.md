@@ -189,7 +189,18 @@ Needed by: `t_cdf`, `beta_cdf`, `f_cdf`, `binomial_cdf_exact`.
 
 ## v0.4.0 — Implemented ✓: Matrix-dependent features
 
-**Prerequisite met**: vani-matrix is complete and added to `[deps]` in vani.toml (path dependency, `use "../../vani-matrix/src/lib.vani"` from src/lib.vani).
+**Prerequisite met**: vani-matrix is complete and added to `[deps]` in vani.toml as a
+proper registry dependency: `vanic add matrix` vendors + checksum-verifies it to
+`./vendor/matrix`, `use "../vendor/matrix/src/lib.vani"` from src/lib.vani.
+
+**Packaging history (v0.4.0 → v0.4.2)**: v0.4.0/v0.4.1 shipped with a hand-copied
+`thirdparty/matrix/` bundle instead, because `vanic publish`'s tarball builder used to
+unconditionally skip any directory literally named `vendor` (and `vanic add`/`build`
+don't resolve transitive deps), so a real `./vendor/matrix` dependency would have been
+silently dropped from the published tarball. Fixed upstream in vani-compiler (the
+tarball builder now only skips `target/` and hidden dirs, not `vendor/`) and migrated
+to the standard mechanism in v0.4.2 -- verified end-to-end with a fresh `vanic add
+probability` in a scratch project pulling in `vendor/matrix` correctly.
 
 ### Multiple linear regression (needs mat_inv_n)
 

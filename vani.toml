@@ -1,6 +1,6 @@
 [package]
 name    = "probability"
-version = "0.4.1"
+version = "0.4.2"
 entry   = "src/lib.vani"
 authors = "enthusiasticgeek"
 license = "MIT"
@@ -8,17 +8,12 @@ description = "Probability and statistics for vāṇī: descriptive stats, distr
 registry = "kosh"
 
 [deps]
-# Bundled copy in thirdparty/matrix/ -- see thirdparty/matrix/README.md for
-# why this isn't a normal registry/vendor dependency (vanic publish's tarball
-# builder skips any dir literally named vendor/target, and vanic add/build
-# don't resolve transitive deps yet, so a path dep outside this repo would
-# be broken for anyone who installs probability via `vanic add`).
-matrix = { path = "./thirdparty/matrix", version = "^0.1.0" }
-
-# No other external deps — the vāṇī compiler already provides:
+# Added via `vanic add matrix` -- vendored + checksum-verified against the
+# registry at ./vendor/matrix. No other external deps — the vāṇī compiler already provides:
 #   f64_normal_pdf / f64_normal_cdf (normal distribution)
 #   rand_normal / rand_uniform / rand_i64 / rand_f64 / rand_bool / rand_in_range
 #   f64_erf / f64_erfc / f64_tgamma / f64_lgamma
 #   i64_factorial / i64_binomial / i64_perm
 #   f64_geometric_mean / f64_harmonic_mean / f64_quadratic_mean / f64_l1_norm
 # None of these must be reimplemented here.
+matrix = { path = "./vendor/matrix", version = "^0.1.0" }
