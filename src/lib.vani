@@ -776,6 +776,7 @@ fn markov_stationary(T: ref Vec<f64>, n: i64, tol: f64, max_iter: i64) -> Vec<f6
 
 // True iff state `state` is absorbing: T[state,state] == 1.0.
 #[bounded_stack(bytes = 57)]
+#[wcet(cycles = 26)]
 fn markov_is_absorbing_state(T: ref Vec<f64>, n: i64, state: i64) -> bool {
     return abs(T[state * n + state] - 1.0) < 1.0e-12;
 }
