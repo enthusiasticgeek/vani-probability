@@ -16,17 +16,34 @@
 // added via `vanic add matrix` (vendored + checksum-verified) -- see
 // [deps] in vani.toml. No `use` statement needed: vanic auto-includes
 // every [deps] entry's source before compiling.
+//
+// WCET (MAINT-1, added 2026-07-21 -- see kosh-index/ROADMAP.md): most
+// functions already carried a hand-written "WCET ≈ N cycles" (flat) or
+// "WCET = <formula>" (loop-dependent) comment from earlier work on this
+// package -- this pass turned the flat estimates into real, vanic
+// check-exact #[wcet(cycles=N)] attributes (24 functions; several needed
+// a second harvest pass once their callees were fixed, same bottom-up
+// process as vani-complex/vani-interval/vani-geometry) and added a WCET
+// note to every function that didn't already have one. Functions calling
+// _gamma_reg_series/_gamma_reg_cf/_beta_cf (`while n < 200` continued-
+// fraction/series loops -- literal-bounded in practice, but the checker
+// only special-cases const-bound `for` loops) are unbounded to the
+// checker regardless of how many wrapper layers separate them from that
+// loop; this propagates through chi_squared_cdf/gamma_cdf/t_cdf/
+// beta_cdf/f_cdf and every p-value function built on them.
 
 // Ascending comparator for sort_by on Vec<f64> (F64-1, landed in the
 // compiler 2026-07-13). Negative/zero/positive per the strcmp convention.
 #[bounded_stack(bytes = 72)]
+#[wcet(cycles = 31)]
 fn _f64_asc(a: f64, b: f64) -> i64 {
     if a < b { return -1; }
     if a > b { return 1; }
     return 0;
 }
 
-// Sorted ascending copy of xs; does not mutate the caller's Vec.
+// Sorted ascending copy of xs; does not mutate the caller's Vec. WCET:
+// O(n) copy + sort_by's O(n log n) -- O(n log n).
 #[bounded_stack(bytes = 112)]
 fn _sorted_copy(xs: ref Vec<f64>) -> Vec<f64> {
     let n: i64 = len(xs) as i64;
@@ -210,6 +227,7 @@ fn weighted_variance(xs: ref Vec<f64>, ws: ref Vec<f64>) -> f64 {
 
 // Binomial PMF: P(X=k) = C(n,k) p^k (1−p)^{n−k}. WCET ≈ 200 cycles.
 #[bounded_stack(bytes = 80)]
+#[wcet(cycles = 135)]
 fn binomial_pmf(n: i64, k: i64, p: f64) -> f64 {
     if k < 0 || k > n { return 0.0; }
     let c: f64 = i64_binomial(n, k) as f64;
@@ -233,6 +251,7 @@ fn binomial_cdf(n: i64, k: i64, p: f64) -> f64 {
 
 // Poisson PMF: P(X=k) = λ^k e^{−λ} / k!. WCET ≈ 200 cycles.
 #[bounded_stack(bytes = 64)]
+#[wcet(cycles = 125)]
 fn poisson_pmf(lambda: f64, k: i64) -> f64 {
     if k < 0 { return 0.0; }
     return pow(lambda, k as f64) * exp(0.0 - lambda) / (i64_factorial(k) as f64);
@@ -254,6 +273,7 @@ fn poisson_cdf(lambda: f64, k: i64) -> f64 {
 
 // Geometric PMF (trials until first success): P(X=k) = (1−p)^{k−1} p. WCET ≈ 120 cycles.
 #[bounded_stack(bytes = 64)]
+#[wcet(cycles = 54)]
 fn geometric_pmf(p: f64, k: i64) -> f64 {
     if k < 1 { return 0.0; }
     return pow(1.0 - p, (k - 1) as f64) * p;
@@ -261,6 +281,7 @@ fn geometric_pmf(p: f64, k: i64) -> f64 {
 
 // Geometric CDF: P(X ≤ k) = 1 − (1−p)^k. WCET ≈ 100 cycles.
 #[bounded_stack(bytes = 64)]
+#[wcet(cycles = 51)]
 fn geometric_cdf(p: f64, k: i64) -> f64 {
     if k < 1 { return 0.0; }
     return 1.0 - pow(1.0 - p, k as f64);
@@ -269,6 +290,7 @@ fn geometric_cdf(p: f64, k: i64) -> f64 {
 // Negative binomial PMF: P(X=k) = C(k+r−1, k) p^r (1−p)^k.
 // r = target successes, k = failures before r-th success. WCET ≈ 200 cycles.
 #[bounded_stack(bytes = 80)]
+#[wcet(cycles = 132)]
 fn negative_binomial_pmf(r: i64, k: i64, p: f64) -> f64 {
     if k < 0 { return 0.0; }
     let c: f64 = i64_binomial(k + r - 1, k) as f64;
@@ -279,6 +301,7 @@ fn negative_binomial_pmf(r: i64, k: i64, p: f64) -> f64 {
 // N = population size, K = success states, n = draws, k = observed successes.
 // WCET ≈ 400 cycles.
 #[bounded_stack(bytes = 104)]
+#[wcet(cycles = 198)]
 fn hypergeometric_pmf(N: i64, K: i64, n: i64, k: i64) -> f64 {
     if k < 0 || k > K || k > n || n - k > N - K { return 0.0; }
     let num: f64 = (i64_binomial(K, k) as f64) * (i64_binomial(N - K, n - k) as f64);
@@ -292,6 +315,7 @@ fn hypergeometric_pmf(N: i64, K: i64, n: i64, k: i64) -> f64 {
 
 // Exponential PDF: f(x;λ) = λ e^{−λx}, x ≥ 0. WCET ≈ 80 cycles.
 #[bounded_stack(bytes = 64)]
+#[wcet(cycles = 57)]
 fn exponential_pdf(lambda: f64, x: f64) -> f64 {
     if x < 0.0 { return 0.0; }
     return lambda * exp(0.0 - lambda * x);
@@ -299,6 +323,7 @@ fn exponential_pdf(lambda: f64, x: f64) -> f64 {
 
 // Exponential CDF: F(x;λ) = 1 − e^{−λx}. WCET ≈ 80 cycles.
 #[bounded_stack(bytes = 64)]
+#[wcet(cycles = 57)]
 fn exponential_cdf(lambda: f64, x: f64) -> f64 {
     if x < 0.0 { return 0.0; }
     return 1.0 - exp(0.0 - lambda * x);
@@ -306,6 +331,7 @@ fn exponential_cdf(lambda: f64, x: f64) -> f64 {
 
 // Inverse-CDF sample from Exponential(λ): −log(U)/λ, U ~ Uniform(0,1). WCET ≈ 100 cycles.
 #[bounded_stack(bytes = 64)]
+#[wcet(cycles = 68)]
 fn sample_exponential(lambda: f64) -> f64 {
     let u: f64 = rand_f64();
     if u < 1.0e-15 { u = 1.0e-15; }
@@ -314,6 +340,7 @@ fn sample_exponential(lambda: f64) -> f64 {
 
 // Uniform PDF on [a,b]: 1/(b−a) for a ≤ x ≤ b, else 0. WCET ≈ 48 cycles.
 #[bounded_stack(bytes = 72)]
+#[wcet(cycles = 30)]
 fn uniform_pdf(a: f64, b: f64, x: f64) -> f64 {
     if x < a || x > b { return 0.0; }
     return 1.0 / (b - a);
@@ -321,6 +348,7 @@ fn uniform_pdf(a: f64, b: f64, x: f64) -> f64 {
 
 // Uniform CDF: (x−a)/(b−a) clamped to [0,1]. WCET ≈ 48 cycles.
 #[bounded_stack(bytes = 80)]
+#[wcet(cycles = 39)]
 fn uniform_cdf(a: f64, b: f64, x: f64) -> f64 {
     if x <= a { return 0.0; }
     if x >= b { return 1.0; }
@@ -330,6 +358,7 @@ fn uniform_cdf(a: f64, b: f64, x: f64) -> f64 {
 // Student's t-PDF with df degrees of freedom. WCET ≈ 300 cycles.
 // Uses builtins f64_tgamma, sqrt, pow.
 #[bounded_stack(bytes = 72)]
+#[wcet(cycles = 177)]
 fn t_pdf(df: f64, x: f64) -> f64 {
     let pi: f64 = 3.141592653589793;
     let c: f64 = f64_tgamma((df + 1.0) / 2.0) / (sqrt(df * pi) * f64_tgamma(df / 2.0));
@@ -339,6 +368,7 @@ fn t_pdf(df: f64, x: f64) -> f64 {
 // Beta PDF: f(x;α,β) = x^{α−1}(1−x)^{β−1} / B(α,β), for 0 < x < 1. WCET ≈ 350 cycles.
 // B(α,β) = Γ(α)Γ(β)/Γ(α+β). Uses builtin f64_tgamma.
 #[bounded_stack(bytes = 80)]
+#[wcet(cycles = 223)]
 fn beta_pdf(alpha: f64, beta: f64, x: f64) -> f64 {
     if x <= 0.0 || x >= 1.0 { return 0.0; }
     let B: f64 = f64_tgamma(alpha) * f64_tgamma(beta) / f64_tgamma(alpha + beta);
@@ -348,6 +378,7 @@ fn beta_pdf(alpha: f64, beta: f64, x: f64) -> f64 {
 // Chi-squared PDF with k degrees of freedom. WCET ≈ 280 cycles.
 // f(x;k) = x^{k/2−1} e^{−x/2} / (2^{k/2} Γ(k/2)), x > 0.
 #[bounded_stack(bytes = 64)]
+#[wcet(cycles = 167)]
 fn chi_squared_pdf(k: f64, x: f64) -> f64 {
     if x <= 0.0 { return 0.0; }
     return pow(x, k / 2.0 - 1.0) * exp(0.0 - x / 2.0) / (pow(2.0, k / 2.0) * f64_tgamma(k / 2.0));
@@ -355,6 +386,7 @@ fn chi_squared_pdf(k: f64, x: f64) -> f64 {
 
 // Gamma PDF with shape α and rate β: f(x;α,β) = β^α x^{α−1} e^{−βx} / Γ(α), x > 0. WCET ≈ 280 cycles.
 #[bounded_stack(bytes = 72)]
+#[wcet(cycles = 158)]
 fn gamma_pdf(shape: f64, rate: f64, x: f64) -> f64 {
     if x <= 0.0 { return 0.0; }
     return pow(rate, shape) * pow(x, shape - 1.0) * exp(0.0 - rate * x) / f64_tgamma(shape);
@@ -362,6 +394,7 @@ fn gamma_pdf(shape: f64, rate: f64, x: f64) -> f64 {
 
 // Laplace PDF: f(x;μ,b) = e^{−|x−μ|/b} / (2b). WCET ≈ 80 cycles.
 #[bounded_stack(bytes = 64)]
+#[wcet(cycles = 56)]
 fn laplace_pdf(mu: f64, b: f64, x: f64) -> f64 {
     return exp(0.0 - abs(x - mu) / b) / (2.0 * b);
 }
@@ -369,6 +402,7 @@ fn laplace_pdf(mu: f64, b: f64, x: f64) -> f64 {
 // Log-normal PDF: if X = e^Y and Y ~ N(μ,σ²), f(x) = φ(log x; μ,σ) / x, x > 0. WCET ≈ 120 cycles.
 // Uses builtin f64_normal_pdf.
 #[bounded_stack(bytes = 72)]
+#[wcet(cycles = 58)]
 fn log_normal_pdf(mu: f64, sigma: f64, x: f64) -> f64 {
     if x <= 0.0 { return 0.0; }
     return f64_normal_pdf(log(x), mu, sigma) / x;
@@ -554,6 +588,7 @@ fn z_stat(xs: ref Vec<f64>, mu0: f64, sigma: f64) -> f64 {
 
 // Conditional probability P(A|B) = P(A∩B) / P(B). Guards P(B) > 0.
 #[bounded_stack(bytes = 64)]
+#[wcet(cycles = 21)]
 fn conditional_prob(p_ab: f64, p_b: f64) -> f64 {
     if p_b < 1.0e-15 { return 0.0; }
     return p_ab / p_b;
@@ -908,6 +943,7 @@ fn cumsum(xs: ref Vec<f64>) -> Vec<f64> {
 
 // Updated running mean after observing a new value x (count is the count INCLUDING x).
 #[bounded_stack(bytes = 72)]
+#[wcet(cycles = 28)]
 fn welford_mean_update(old_mean: f64, count: i64, x: f64) -> f64 {
     if count < 1 { return old_mean; }
     return old_mean + (x - old_mean) / (count as f64);
@@ -916,12 +952,14 @@ fn welford_mean_update(old_mean: f64, count: i64, x: f64) -> f64 {
 // Updated M2 (sum of squared deviations from the mean) given the mean before and after
 // this update. Call welford_mean_update() first to get new_mean, then this.
 #[bounded_stack(bytes = 72)]
+#[wcet(cycles = 18)]
 fn welford_m2_update(old_m2: f64, old_mean: f64, new_mean: f64, x: f64) -> f64 {
     return old_m2 + (x - old_mean) * (x - new_mean);
 }
 
 // Bessel-corrected variance from accumulated M2 and count. 0.0 if count < 2.
 #[bounded_stack(bytes = 64)]
+#[wcet(cycles = 25)]
 fn welford_variance(m2: f64, count: i64) -> f64 {
     if count < 2 { return 0.0; }
     return m2 / ((count - 1) as f64);
@@ -1061,7 +1099,11 @@ fn _gamma_reg_cf(a: f64, x: f64) -> f64 {
 }
 
 // Regularised incomplete gamma P(a,x) = γ(a,x)/Γ(a); routes to series or
-// continued fraction depending on x. Guards x<=0 -> 0, a<=0 -> 0.
+// continued fraction depending on x. Guards x<=0 -> 0, a<=0 -> 0. NO
+// #[wcet]: routes to _gamma_reg_series/_gamma_reg_cf, both unbounded to
+// the checker (a `while n < 200` loop -- literal-bounded in practice, but
+// only `for` loops with const bounds get that treatment, same situation
+// as vani-algebra's algebra_cubic_roots_real).
 #[bounded_stack(bytes = 264)]
 fn _gamma_reg(a: f64, x: f64) -> f64 {
     if x <= 0.0 || a <= 0.0 { return 0.0; }
@@ -1072,13 +1114,15 @@ fn _gamma_reg(a: f64, x: f64) -> f64 {
     }
 }
 
-// Chi-squared CDF with k degrees of freedom: P(k/2, x/2).
+// Chi-squared CDF with k degrees of freedom: P(k/2, x/2). NO #[wcet]:
+// calls _gamma_reg, unbounded to the checker.
 #[bounded_stack(bytes = 320)]
 fn chi_squared_cdf(k: f64, x: f64) -> f64 {
     return _gamma_reg(k / 2.0, x / 2.0);
 }
 
-// Gamma CDF with shape and rate parameters: P(shape, rate×x).
+// Gamma CDF with shape and rate parameters: P(shape, rate×x). NO #[wcet]:
+// calls _gamma_reg, unbounded to the checker.
 #[bounded_stack(bytes = 328)]
 fn gamma_cdf(shape: f64, rate: f64, x: f64) -> f64 {
     return _gamma_reg(shape, rate * x);
@@ -1088,6 +1132,7 @@ fn gamma_cdf(shape: f64, rate: f64, x: f64) -> f64 {
 // separately in the v0.3.0 catalog as the "exact" companion to the
 // regularised-incomplete-gamma-based CDFs above.
 #[bounded_stack(bytes = 120)]
+#[wcet(cycles = 69)]
 fn exponential_cdf_exact(lambda: f64, x: f64) -> f64 {
     return exponential_cdf(lambda, x);
 }
@@ -1133,7 +1178,9 @@ fn _beta_cf(a: f64, b: f64, x: f64) -> f64 {
 
 // Regularised incomplete beta I_x(a,b), via continued fraction with the
 // symmetry relation I_x(a,b) = 1 - I_{1-x}(b,a) for numerical stability when
-// x is close to 1. Guards x<=0 -> 0, x>=1 -> 1.
+// x is close to 1. Guards x<=0 -> 0, x>=1 -> 1. NO #[wcet]: calls
+// _beta_cf, unbounded to the checker (same `while m < 200` situation as
+// _gamma_reg_series/_gamma_reg_cf).
 #[bounded_stack(bytes = 376)]
 fn _beta_reg(a: f64, b: f64, x: f64) -> f64 {
     if x <= 0.0 { return 0.0; }
@@ -1148,7 +1195,8 @@ fn _beta_reg(a: f64, b: f64, x: f64) -> f64 {
 
 // Student's t CDF with df degrees of freedom, via the incomplete beta relation:
 // F(t) = 1 - 0.5×I_x(df/2, 1/2) for t>=0, F(t) = 0.5×I_x(df/2, 1/2) for t<0,
-// where x = df/(df+t²).
+// where x = df/(df+t²). NO #[wcet]: calls _beta_reg, unbounded to the
+// checker.
 #[bounded_stack(bytes = 448)]
 fn t_cdf(df: f64, t: f64) -> f64 {
     let x: f64 = df / (df + t * t);
@@ -1160,13 +1208,15 @@ fn t_cdf(df: f64, t: f64) -> f64 {
     }
 }
 
-// Beta distribution CDF: I_x(alpha, beta).
+// Beta distribution CDF: I_x(alpha, beta). NO #[wcet]: calls _beta_reg,
+// unbounded to the checker.
 #[bounded_stack(bytes = 440)]
 fn beta_cdf(alpha: f64, beta: f64, x: f64) -> f64 {
     return _beta_reg(alpha, beta, x);
 }
 
 // F-distribution CDF: I_y(df1/2, df2/2) where y = df1×x / (df1×x + df2).
+// NO #[wcet]: calls _beta_reg, unbounded to the checker.
 #[bounded_stack(bytes = 456)]
 fn f_cdf(df1: f64, df2: f64, x: f64) -> f64 {
     if x <= 0.0 { return 0.0; }
@@ -1176,13 +1226,15 @@ fn f_cdf(df1: f64, df2: f64, x: f64) -> f64 {
 
 // ── p-values from test statistics ────────────────────────────────────────────
 
-// Two-tailed p-value from a t-statistic: 2 × (1 − t_cdf(df, |t|)).
+// Two-tailed p-value from a t-statistic: 2 × (1 − t_cdf(df, |t|)). NO
+// #[wcet]: calls t_cdf, unbounded to the checker.
 #[bounded_stack(bytes = 504)]
 fn t_pvalue_two_tailed(t: f64, df: f64) -> f64 {
     return 2.0 * (1.0 - t_cdf(df, abs(t)));
 }
 
 // Upper-tail p-value from a chi-squared statistic: 1 − chi_squared_cdf(df, stat).
+// NO #[wcet]: calls chi_squared_cdf, unbounded to the checker.
 #[bounded_stack(bytes = 376)]
 fn chi_squared_pvalue(stat: f64, df: f64) -> f64 {
     return 1.0 - chi_squared_cdf(df, stat);
@@ -1190,11 +1242,13 @@ fn chi_squared_pvalue(stat: f64, df: f64) -> f64 {
 
 // Two-tailed p-value from a z-statistic, using the compiler's normal CDF builtin.
 #[bounded_stack(bytes = 48)]
+#[wcet(cycles = 24)]
 fn z_pvalue_two_tailed(z: f64) -> f64 {
     return 2.0 * (1.0 - f64_normal_cdf(abs(z), 0.0, 1.0));
 }
 
-// Upper-tail p-value from an F-statistic: 1 − f_cdf(df1, df2, f).
+// Upper-tail p-value from an F-statistic: 1 − f_cdf(df1, df2, f). NO
+// #[wcet]: calls f_cdf, unbounded to the checker.
 #[bounded_stack(bytes = 520)]
 fn f_pvalue(f: f64, df1: f64, df2: f64) -> f64 {
     return 1.0 - f_cdf(df1, df2, f);
@@ -1206,6 +1260,7 @@ fn f_pvalue(f: f64, df1: f64, df2: f64) -> f64 {
 // mat_inv_n, mat_vec_mul).
 
 // Ordinary least squares fit via the normal equations: β = (XᵀX)⁻¹ Xᵀy.
+// NO #[wcet]: dominated by mat_inv_n's O(n_pred^3) Gauss-Jordan inversion.
 #[bounded_stack(bytes = 704)]
 fn mlr_fit(X_flat: ref Vec<f64>, y: ref Vec<f64>, n_obs: i64, n_pred: i64) -> Vec<f64> {
     let Xt: Vec<f64> = mat_transpose(X_flat, n_obs, n_pred);
@@ -1216,13 +1271,14 @@ fn mlr_fit(X_flat: ref Vec<f64>, y: ref Vec<f64>, n_obs: i64, n_pred: i64) -> Ve
     return beta;
 }
 
-// Predicted values: y-hat = X beta.
+// Predicted values: y-hat = X beta. NO #[wcet]: mat_vec_mul's
+// O(n_obs*n_pred).
 #[bounded_stack(bytes = 248)]
 fn mlr_predict(X_flat: ref Vec<f64>, beta: ref Vec<f64>, n_obs: i64, n_pred: i64) -> Vec<f64> {
     return mat_vec_mul(X_flat, beta, n_obs, n_pred);
 }
 
-// Residuals: r = y - y_hat.
+// Residuals: r = y - y_hat. WCET = 20 + n * ~10 cycles.
 #[bounded_stack(bytes = 120)]
 fn mlr_residuals(y: ref Vec<f64>, y_hat: ref Vec<f64>) -> Vec<f64> {
     let n: i64 = len(y) as i64;
@@ -1235,7 +1291,8 @@ fn mlr_residuals(y: ref Vec<f64>, y_hat: ref Vec<f64>) -> Vec<f64> {
     return out;
 }
 
-// Coefficient of determination: 1 - SS_res/SS_tot.
+// Coefficient of determination: 1 - SS_res/SS_tot. WCET: call mean
+// (O(n)) + an O(n) loop -- O(n).
 #[bounded_stack(bytes = 240)]
 fn mlr_r_squared(y: ref Vec<f64>, y_hat: ref Vec<f64>) -> f64 {
     let n: i64 = len(y) as i64;
@@ -1255,6 +1312,7 @@ fn mlr_r_squared(y: ref Vec<f64>, y_hat: ref Vec<f64>) -> f64 {
 }
 
 // Adjusted R-squared: penalises adding predictors that don't improve fit.
+// NO #[wcet]: calls mlr_r_squared -- O(n).
 #[bounded_stack(bytes = 336)]
 fn mlr_adj_r_squared(y: ref Vec<f64>, y_hat: ref Vec<f64>, n_pred: i64) -> f64 {
     let n: i64 = len(y) as i64;
@@ -1267,7 +1325,8 @@ fn mlr_adj_r_squared(y: ref Vec<f64>, y_hat: ref Vec<f64>, n_pred: i64) -> f64 {
 // ── Covariance matrix ────────────────────────────────────────────────────────
 
 // Sample covariance matrix of X_flat (row-major n_obs x n_vars), two-pass.
-// Returns a flat n_vars x n_vars matrix.
+// Returns a flat n_vars x n_vars matrix. WCET: means pass O(n_vars*n_obs)
+// + covariance pass O(n_vars^2*n_obs) -- O(n_vars^2*n_obs).
 #[bounded_stack(bytes = 264)]
 fn cov_matrix(X_flat: ref Vec<f64>, n_obs: i64, n_vars: i64) -> Vec<f64> {
     let means: Vec<f64> = vec();
@@ -1305,6 +1364,7 @@ fn cov_matrix(X_flat: ref Vec<f64>, n_obs: i64, n_vars: i64) -> Vec<f64> {
 }
 
 // Correlation matrix: cov_matrix standardised by the row/column standard deviations.
+// NO #[wcet]: dominated by cov_matrix's O(n_vars^2*n_obs).
 #[bounded_stack(bytes = 488)]
 fn correlation_matrix(X_flat: ref Vec<f64>, n_obs: i64, n_vars: i64) -> Vec<f64> {
     let cov: Vec<f64> = cov_matrix(X_flat, n_obs, n_vars);
@@ -1334,7 +1394,8 @@ fn correlation_matrix(X_flat: ref Vec<f64>, n_obs: i64, n_vars: i64) -> Vec<f64>
 
 // Dominant eigenvector of a symmetric matrix (e.g. a covariance matrix) via
 // power iteration from a uniform start. Returns a unit vector; converges early
-// once successive iterates move less than tol.
+// once successive iterates move less than tol. WCET = 20 + n (init) +
+// max_iter * (mat_vec_mul's O(n^2) + O(n) work) -- O(max_iter * n^2).
 #[bounded_stack(bytes = 432)]
 fn pca_power_iter(cov_flat: ref Vec<f64>, n: i64, max_iter: i64, tol: f64) -> Vec<f64> {
     let v: Vec<f64> = vec();
@@ -1366,7 +1427,8 @@ fn pca_power_iter(cov_flat: ref Vec<f64>, n: i64, max_iter: i64, tol: f64) -> Ve
 // Deflate a covariance matrix by removing the variance already explained by
 // pc1 (a unit eigenvector): cov' = cov - lambda * v v^T, where lambda = v^T cov v
 // is the Rayleigh-quotient eigenvalue estimate. Run pca_power_iter again on the
-// result to get the second principal component.
+// result to get the second principal component. WCET: mat_vec_mul's
+// O(n^2) + vec_outer's O(n^2) + an O(n^2) loop -- O(n^2).
 #[bounded_stack(bytes = 440)]
 fn pca_deflate(cov_flat: ref Vec<f64>, n: i64, pc1: ref Vec<f64>) -> Vec<f64> {
     let cv: Vec<f64> = mat_vec_mul(cov_flat, pc1, n, n);
@@ -1384,7 +1446,8 @@ fn pca_deflate(cov_flat: ref Vec<f64>, n: i64, pc1: ref Vec<f64>) -> Vec<f64> {
 // ── Stochastic processes ─────────────────────────────────────────────────────
 
 // 1D discrete random walk: position[0] = 0, position[i] = position[i-1] + N(0,sigma).
-// Returns a Vec of exactly n_steps positions.
+// Returns a Vec of exactly n_steps positions. WCET = 20 + n_steps *
+// ~15 cycles.
 #[bounded_stack(bytes = 128)]
 fn random_walk_1d(n_steps: i64, sigma: f64) -> Vec<f64> {
     let out: Vec<f64> = vec();
@@ -1400,7 +1463,8 @@ fn random_walk_1d(n_steps: i64, sigma: f64) -> Vec<f64> {
 }
 
 // Geometric Brownian motion path via Euler-Maruyama: S += mu*S*dt + sigma*S*sqrt(dt)*Z.
-// Returns a Vec of exactly n_steps prices starting at s0.
+// Returns a Vec of exactly n_steps prices starting at s0. WCET = 20 +
+// n_steps * ~15 cycles.
 #[bounded_stack(bytes = 168)]
 fn geometric_brownian(s0: f64, mu: f64, sigma: f64, dt: f64, n_steps: i64) -> Vec<f64> {
     let out: Vec<f64> = vec();
@@ -1420,7 +1484,8 @@ fn geometric_brownian(s0: f64, mu: f64, sigma: f64, dt: f64, n_steps: i64) -> Ve
 // Kalman filter predict step for n-dimensional state x, covariance P (n x n),
 // state-transition F (n x n), process noise Q (n x n). Returns a packed Vec:
 // elements [0..n) are the predicted state, [n..n+n^2) are the predicted
-// covariance (row-major).
+// covariance (row-major). WCET: mat_vec_mul (O(n^2)) + 2 * mat_mul
+// (O(n^3) each) -- O(n^3).
 #[bounded_stack(bytes = 536)]
 fn kalman_predict(x: ref Vec<f64>, P: ref Vec<f64>, F: ref Vec<f64>, Q: ref Vec<f64>, n: i64) -> Vec<f64> {
     let x_pred: Vec<f64> = mat_vec_mul(F, x, n, n);
@@ -1444,7 +1509,8 @@ fn kalman_predict(x: ref Vec<f64>, P: ref Vec<f64>, F: ref Vec<f64>, Q: ref Vec<
 // Kalman filter update step: state x (n), covariance P (n x n), measurement z
 // (m), observation model H (m x n), measurement noise R (m x m). Returns a
 // packed Vec: elements [0..n) are the updated state, [n..n+n^2) are the
-// updated covariance (row-major).
+// updated covariance (row-major). NO #[wcet]: dominated by several
+// mat_mul_rect/mat_mul/mat_inv_n calls -- O(max(n,m)^3).
 #[bounded_stack(bytes = 1064)]
 fn kalman_update(x: ref Vec<f64>, P: ref Vec<f64>, z: ref Vec<f64>, H: ref Vec<f64>, R: ref Vec<f64>, n: i64, m: i64) -> Vec<f64> {
     let Hx: Vec<f64> = mat_vec_mul(H, x, m, n);
@@ -1498,7 +1564,8 @@ fn kalman_update(x: ref Vec<f64>, P: ref Vec<f64>, z: ref Vec<f64>, H: ref Vec<f
 // ── Deferred (were blocked on F64-1, sort_by on Vec<f64> -- landed 2026-07-13) ───
 
 // q-th quantile via linear interpolation between sorted neighbors (R's
-// default "type 7" method). q is clamped to [0,1].
+// default "type 7" method). q is clamped to [0,1]. NO #[wcet]: calls
+// _sorted_copy -- O(n log n).
 #[bounded_stack(bytes = 280)]
 fn quantile(xs: ref Vec<f64>, q: f64) -> f64 {
     let n: i64 = len(xs) as i64;
@@ -1516,13 +1583,15 @@ fn quantile(xs: ref Vec<f64>, q: f64) -> f64 {
     return sorted[lo] + frac * (sorted[hi] - sorted[lo]);
 }
 
-// Interquartile range: Q3 - Q1.
+// Interquartile range: Q3 - Q1. NO #[wcet]: two quantile calls, each
+// O(n log n).
 #[bounded_stack(bytes = 328)]
 fn iqr(xs: ref Vec<f64>) -> f64 {
     return quantile(xs, 0.75) - quantile(xs, 0.25);
 }
 
 // Most frequent value (sort + scan). Ties broken toward the smaller value.
+// NO #[wcet]: _sorted_copy's O(n log n) + an O(n) scan -- O(n log n).
 #[bounded_stack(bytes = 280)]
 fn mode(xs: ref Vec<f64>) -> f64 {
     let n: i64 = len(xs) as i64;
@@ -1575,6 +1644,7 @@ fn _rank_transform(xs: ref Vec<f64>) -> Vec<f64> {
 }
 
 // Spearman rank correlation: pearson_r of the rank-transformed samples.
+// NO #[wcet]: two _rank_transform calls, each O(n^2), dominate pearson_r's O(n).
 #[bounded_stack(bytes = 440)]
 fn spearman_r(xs: ref Vec<f64>, ys: ref Vec<f64>) -> f64 {
     let rx: Vec<f64> = _rank_transform(xs);
@@ -1585,6 +1655,7 @@ fn spearman_r(xs: ref Vec<f64>, ys: ref Vec<f64>) -> f64 {
 // Mann-Whitney U statistic (nonparametric two-sample test): rank the pooled
 // sample (tie-averaged), sum the ranks of group 1 (R1), then
 // U = R1 - n1(n1+1)/2. U=0 means group 1 is entirely below group 2.
+// NO #[wcet]: dominated by _rank_transform's O((nx+ny)^2).
 #[bounded_stack(bytes = 360)]
 fn mann_whitney_u_stat(xs: ref Vec<f64>, ys: ref Vec<f64>) -> f64 {
     let nx: i64 = len(xs) as i64;
@@ -1615,6 +1686,8 @@ fn mann_whitney_u_stat(xs: ref Vec<f64>, ys: ref Vec<f64>) -> f64 {
 // absolute gap between the two samples' empirical CDFs, evaluated at every
 // point in the pooled sample (where a step function can only change).
 // D=0 means identical distributions; D=1 means fully separated samples.
+// NO #[wcet]: outer loop over the n_total pooled points, each doing an
+// O(nx+ny) scan to count -- O((nx+ny)^2).
 #[bounded_stack(bytes = 272)]
 fn kolmogorov_smirnov_stat(xs: ref Vec<f64>, ys: ref Vec<f64>) -> f64 {
     let nx: i64 = len(xs) as i64;
