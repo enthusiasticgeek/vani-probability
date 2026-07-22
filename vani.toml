@@ -1,6 +1,6 @@
 [package]
 name    = "probability"
-version = "0.4.5"
+version = "0.4.6"
 entry   = "src/lib.vani"
 authors = "enthusiasticgeek"
 license = "MIT"
@@ -16,4 +16,4 @@ registry = "kosh"
 #   i64_factorial / i64_binomial / i64_perm
 #   f64_geometric_mean / f64_harmonic_mean / f64_quadratic_mean / f64_l1_norm
 # None of these must be reimplemented here.
-matrix = { path = "./vendor/matrix", version = "^0.1.0" }
+matrix = { path = "./vendor/matrix", version = "^0.2.0" }

@@ -4,11 +4,12 @@ version = 1
 
 [[package]]
 name = "probability"
-version = "0.4.2"
+version = "0.4.5"
 
 [[package]]
 name = "matrix"
-version = "0.1.0"
+version = "0.2.0"
 source = "local"
+direct = true
 path = "./vendor/matrix"
-version-req = "^0.1.0"
+version-req = "^0.2.0"

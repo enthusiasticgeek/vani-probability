@@ -1264,11 +1264,11 @@ fn f_pvalue(f: f64, df1: f64, df2: f64) -> f64 {
 // NO #[wcet]: dominated by mat_inv_n's O(n_pred^3) Gauss-Jordan inversion.
 #[bounded_stack(bytes = 704)]
 fn mlr_fit(X_flat: ref Vec<f64>, y: ref Vec<f64>, n_obs: i64, n_pred: i64) -> Vec<f64> {
-    let Xt: Vec<f64> = mat_transpose(X_flat, n_obs, n_pred);
-    let XtX: Vec<f64> = mat_mul_rect(ref Xt, X_flat, n_pred, n_obs, n_pred);
-    let XtX_inv: Vec<f64> = mat_inv_n(ref XtX, n_pred);
-    let Xty: Vec<f64> = mat_vec_mul(ref Xt, y, n_pred, n_obs);
-    let beta: Vec<f64> = mat_vec_mul(ref XtX_inv, ref Xty, n_pred, n_pred);
+    let Xt: Vec<f64> = matrix::mat_transpose(X_flat, n_obs, n_pred);
+    let XtX: Vec<f64> = matrix::mat_mul_rect(ref Xt, X_flat, n_pred, n_obs, n_pred);
+    let XtX_inv: Vec<f64> = matrix::mat_inv_n(ref XtX, n_pred);
+    let Xty: Vec<f64> = matrix::mat_vec_mul(ref Xt, y, n_pred, n_obs);
+    let beta: Vec<f64> = matrix::mat_vec_mul(ref XtX_inv, ref Xty, n_pred, n_pred);
     return beta;
 }
 
@@ -1276,7 +1276,7 @@ fn mlr_fit(X_flat: ref Vec<f64>, y: ref Vec<f64>, n_obs: i64, n_pred: i64) -> Ve
 // O(n_obs*n_pred).
 #[bounded_stack(bytes = 248)]
 fn mlr_predict(X_flat: ref Vec<f64>, beta: ref Vec<f64>, n_obs: i64, n_pred: i64) -> Vec<f64> {
-    return mat_vec_mul(X_flat, beta, n_obs, n_pred);
+    return matrix::mat_vec_mul(X_flat, beta, n_obs, n_pred);
 }
 
 // Residuals: r = y - y_hat. WCET = 20 + n * ~10 cycles.
@@ -1407,8 +1407,8 @@ fn pca_power_iter(cov_flat: ref Vec<f64>, n: i64, max_iter: i64, tol: f64) -> Ve
     }
     let iter: i64 = 0;
     while iter < max_iter {
-        let w: Vec<f64> = mat_vec_mul(cov_flat, ref v, n, n);
-        let norm: f64 = vec_norm2(ref w, n);
+        let w: Vec<f64> = matrix::mat_vec_mul(cov_flat, ref v, n, n);
+        let norm: f64 = matrix::vec_norm2(ref w, n);
         if norm < 1.0e-15 { return v; }
         let j: i64 = 0;
         let diff: f64 = 0.0;
@@ -1432,9 +1432,9 @@ fn pca_power_iter(cov_flat: ref Vec<f64>, n: i64, max_iter: i64, tol: f64) -> Ve
 // O(n^2) + vec_outer's O(n^2) + an O(n^2) loop -- O(n^2).
 #[bounded_stack(bytes = 440)]
 fn pca_deflate(cov_flat: ref Vec<f64>, n: i64, pc1: ref Vec<f64>) -> Vec<f64> {
-    let cv: Vec<f64> = mat_vec_mul(cov_flat, pc1, n, n);
-    let lambda: f64 = dot_n(ref cv, pc1, n);
-    let outer: Vec<f64> = vec_outer(pc1, pc1, n, n);
+    let cv: Vec<f64> = matrix::mat_vec_mul(cov_flat, pc1, n, n);
+    let lambda: f64 = matrix::dot_n(ref cv, pc1, n);
+    let outer: Vec<f64> = matrix::vec_outer(pc1, pc1, n, n);
     let out: Vec<f64> = vec();
     let i: i64 = 0;
     while i < n * n {
@@ -1489,10 +1489,10 @@ fn geometric_brownian(s0: f64, mu: f64, sigma: f64, dt: f64, n_steps: i64) -> Ve
 // (O(n^3) each) -- O(n^3).
 #[bounded_stack(bytes = 536)]
 fn kalman_predict(x: ref Vec<f64>, P: ref Vec<f64>, F: ref Vec<f64>, Q: ref Vec<f64>, n: i64) -> Vec<f64> {
-    let x_pred: Vec<f64> = mat_vec_mul(F, x, n, n);
-    let FP: Vec<f64> = mat_mul(F, P, n);
-    let Ft: Vec<f64> = mat_transpose(F, n, n);
-    let FPFt: Vec<f64> = mat_mul(ref FP, ref Ft, n);
+    let x_pred: Vec<f64> = matrix::mat_vec_mul(F, x, n, n);
+    let FP: Vec<f64> = matrix::mat_mul(F, P, n);
+    let Ft: Vec<f64> = matrix::mat_transpose(F, n, n);
+    let FPFt: Vec<f64> = matrix::mat_mul(ref FP, ref Ft, n);
     let out: Vec<f64> = vec();
     let i: i64 = 0;
     while i < n {
@@ -1514,34 +1514,34 @@ fn kalman_predict(x: ref Vec<f64>, P: ref Vec<f64>, F: ref Vec<f64>, Q: ref Vec<
 // mat_mul_rect/mat_mul/mat_inv_n calls -- O(max(n,m)^3).
 #[bounded_stack(bytes = 1064)]
 fn kalman_update(x: ref Vec<f64>, P: ref Vec<f64>, z: ref Vec<f64>, H: ref Vec<f64>, R: ref Vec<f64>, n: i64, m: i64) -> Vec<f64> {
-    let Hx: Vec<f64> = mat_vec_mul(H, x, m, n);
+    let Hx: Vec<f64> = matrix::mat_vec_mul(H, x, m, n);
     let y: Vec<f64> = vec();
     let i0: i64 = 0;
     while i0 < m {
         push(mut ref y, z[i0] - Hx[i0]);
         i0 = i0 + 1;
     }
-    let Ht: Vec<f64> = mat_transpose(H, m, n);
-    let HP: Vec<f64> = mat_mul_rect(H, P, m, n, n);
-    let HPHt: Vec<f64> = mat_mul_rect(ref HP, ref Ht, m, n, m);
+    let Ht: Vec<f64> = matrix::mat_transpose(H, m, n);
+    let HP: Vec<f64> = matrix::mat_mul_rect(H, P, m, n, n);
+    let HPHt: Vec<f64> = matrix::mat_mul_rect(ref HP, ref Ht, m, n, m);
     let S: Vec<f64> = vec();
     let i1: i64 = 0;
     while i1 < m * m {
         push(mut ref S, HPHt[i1] + R[i1]);
         i1 = i1 + 1;
     }
-    let PHt: Vec<f64> = mat_mul_rect(P, ref Ht, n, n, m);
-    let S_inv: Vec<f64> = mat_inv_n(ref S, m);
-    let K: Vec<f64> = mat_mul_rect(ref PHt, ref S_inv, n, m, m);
-    let Ky: Vec<f64> = mat_vec_mul(ref K, ref y, n, m);
+    let PHt: Vec<f64> = matrix::mat_mul_rect(P, ref Ht, n, n, m);
+    let S_inv: Vec<f64> = matrix::mat_inv_n(ref S, m);
+    let K: Vec<f64> = matrix::mat_mul_rect(ref PHt, ref S_inv, n, m, m);
+    let Ky: Vec<f64> = matrix::mat_vec_mul(ref K, ref y, n, m);
     let x_new: Vec<f64> = vec();
     let i2: i64 = 0;
     while i2 < n {
         push(mut ref x_new, x[i2] + Ky[i2]);
         i2 = i2 + 1;
     }
-    let KH: Vec<f64> = mat_mul_rect(ref K, H, n, m, n);
-    let KHP: Vec<f64> = mat_mul(ref KH, P, n);
+    let KH: Vec<f64> = matrix::mat_mul_rect(ref K, H, n, m, n);
+    let KHP: Vec<f64> = matrix::mat_mul(ref KH, P, n);
     let P_new: Vec<f64> = vec();
     let i3: i64 = 0;
     while i3 < n * n {
