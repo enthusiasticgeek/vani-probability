@@ -258,4 +258,17 @@ probability` in a scratch project pulling in `vendor/matrix` correctly.
       the largest budgets in the library so far, up to 1064 bytes)
 - [x] `#[bounded_stack(bytes=N)]` on the deferred functions and the rewritten `median`
       (same verification method)
-- [ ] `#[wcet(cycles=N)]` on leaf functions with no loops — add after cycle audit
+- [x] `#[wcet(cycles=N)]` on leaf functions with no loops — verified complete
+      2026-07-26: every function with no own loop AND no call into a
+      runtime-length-dependent callee already carries `#[wcet(cycles=N)]`
+      (47 functions). Every other no-own-loop function (std_dev, median,
+      pearson_r, the CDF/p-value chain routing through `_gamma_reg`/
+      `_beta_reg`'s `while n < 200` continued fractions, mlr_fit/predict/
+      adj_r_squared, quantile/iqr/spearman_r, etc.) calls something whose
+      cost depends on a runtime `n` or the 200-iteration convergence loops,
+      so it's correctly excluded and already carries a WCET formula
+      comment (or an explicit "NO #[wcet]: calls X, unbounded to the
+      checker" note) instead. `vanic audit-safety src/lib.vani` confirms:
+      "full #[bounded_stack]/#[wcet] coverage where eligible" — nothing
+      was actually missing; this checkbox was stale bookkeeping from
+      before the coverage pass finished.
