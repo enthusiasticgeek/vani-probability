@@ -4,6 +4,8 @@ Probability and statistics library for the [vāṇī compiler](https://github.co
 
 Provides descriptive statistics, discrete and continuous distributions, correlation, OLS regression, information theory, hypothesis testing, Bayesian inference, Markov chains, time series analysis, CDF/p-value hypothesis testing, multiple linear regression, PCA, and stochastic processes (depends on vani-matrix from v0.4 onward) — as pure vāṇī source. Does **not** reimplement anything already available as a vāṇī compiler builtin.
 
+**API reference / tutorial:** <https://enthusiasticgeek.github.io/vani-probability/>
+
 ## Add to your project
 
 ```toml
