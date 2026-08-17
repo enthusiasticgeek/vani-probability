@@ -131,4 +131,31 @@ fn test_log_normal_pdf_zero() -> i64 {
     return 0;
 }
 
+// sample_exponential(lambda): inverse-CDF Monte Carlo sampling, had no
+// direct test/example call site of its own (only exponential_pdf/_cdf
+// were exercised above). Checks support (x >= 0 always) and that the
+// sample mean converges to the distribution's true mean 1/lambda (law
+// of large numbers) within a loose statistical tolerance for N=20000.
+#[test]
+fn test_sample_exponential_support_and_mean() -> i64 {
+    let _seeded: i64 = seed_rng(1234 as u64);
+    let lambda: f64 = 2.0;
+    let n: i64 = 20000;
+    let total: f64 = 0.0;
+    let i: i64 = 0;
+    while i < n {
+        let x: f64 = sample_exponential(lambda);
+        assert x >= 0.0;
+        total = total + x;
+        i = i + 1;
+    }
+    let sample_mean: f64 = total / (n as f64);
+    let true_mean: f64 = 1.0 / lambda;
+    // Std dev of Exponential(2) is also 1/lambda = 0.5; std error of the
+    // mean over 20000 draws is ~0.5/sqrt(20000) ~= 0.0035, so 0.05 is a
+    // wide (>10 std-error), non-flaky margin.
+    assert abs(sample_mean - true_mean) < 0.05;
+    return 0;
+}
+
 fn main() -> i64 { return 0; }
